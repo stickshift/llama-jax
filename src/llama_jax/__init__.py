@@ -1,5 +1,5 @@
-from . import normalization
+from . import model
 
 __all__ = [
-    "normalization",
+    "model",
 ]

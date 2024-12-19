@@ -9,7 +9,18 @@ dynamic = ["version"]
 requires-python = ">=3.12"
 
 dependencies = [
+    "click>=8.1.7",
     "jax-metal>=0.1.1",
+]
+
+[project.scripts]
+
+llama-jax = "llama_jax.cli:cli"
+
+[project.optional-dependencies]
+
+cli = [
+    "torch>=2.5.1",
 ]
 
 #-------------------------------------------------------------------------------

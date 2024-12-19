@@ -2,7 +2,7 @@ from jax import numpy as jnp
 from jax import random
 
 import llama_jax as ll
-from llama_jax.normalization import RMSNorm
+from llama_jax.model import RMSNorm
 
 
 def test_rms_norm_identity():
@@ -25,7 +25,7 @@ def test_rms_norm_identity():
     #
 
     # I normalize x
-    y = ll.normalization.rms(norm, x)
+    y = ll.model.rms_norm(norm, x)
 
     #
     # Thens
@@ -59,10 +59,10 @@ def test_rms_norm_scaling():
     #
 
     # I normalize x
-    y0 = ll.normalization.rms(norm, x)
+    y0 = ll.model.rms_norm(norm, x)
 
     # I normalize 100*x
-    y1 = ll.normalization.rms(norm, 100 * x)
+    y1 = ll.model.rms_norm(norm, 100 * x)
 
     #
     # Thens
