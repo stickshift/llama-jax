@@ -8,22 +8,21 @@ import pickle
 from typing import NamedTuple
 
 from jax import Array
-from jax import numpy as jnp
 from jax.dtypes import bfloat16
-from jax.typing import ArrayLike, DTypeLike
+from jax.typing import DTypeLike
+
+from .attention import Attention
+from .ffn import FFN
+from .head import Head
+from .layer import Layer
+from .normalization import RMSNorm
 
 __all__ = [
-    "FFN",
-    "Attention",
-    "Head",
-    "Layer",
     "Model",
     "ModelConfig",
-    "RMSNorm",
     "TrainingLevel",
     "load_config",
     "load_model",
-    "rms_norm",
 ]
 
 
@@ -33,6 +32,8 @@ __all__ = [
 
 
 class TrainingLevel(str, Enum):
+    """Llama3 training level."""
+
     PRETRAINED = "pretrained"
     INSTRUCT = "instruct"
 
@@ -108,95 +109,6 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
 
 
 # ------------------------------------------------------------------------------
-# Normalization
-# ------------------------------------------------------------------------------
-
-
-class RMSNorm(NamedTuple):
-    """RMS Normalization state."""
-
-    weight: Array
-
-    eps: float
-
-
-def rms_norm(state: RMSNorm, x: ArrayLike) -> Array:
-    """Normalize x using RMS Normalization.
-
-    See https://doi.org/10.48550/arXiv.1910.07467
-    """
-    return state.weight * x / jnp.sqrt(jnp.mean(x**2) + state.eps)
-
-
-# ------------------------------------------------------------------------------
-# Attention
-# ------------------------------------------------------------------------------
-
-
-class Attention(NamedTuple):
-    """Attention state."""
-
-    n_heads: int
-
-    n_kv_heads: int
-
-    d_head: int
-
-    norm: RMSNorm
-
-    queries: Array
-
-    keys: Array
-
-    values: Array
-
-    output: Array
-
-
-# ------------------------------------------------------------------------------
-# FFN
-# ------------------------------------------------------------------------------
-
-
-class FFN(NamedTuple):
-    """Feedforward Network state."""
-
-    norm: RMSNorm
-
-    input: Array
-
-    gate: Array
-
-    output: Array
-
-
-# ------------------------------------------------------------------------------
-# Layer
-# ------------------------------------------------------------------------------
-
-
-class Layer(NamedTuple):
-    """Decoder layer state."""
-
-    attention: Attention
-
-    ffn: FFN
-
-
-# ------------------------------------------------------------------------------
-# Head
-# ------------------------------------------------------------------------------
-
-
-class Head(NamedTuple):
-    """Head state."""
-
-    norm: RMSNorm
-
-    output: Array
-
-
-# ------------------------------------------------------------------------------
 # Model
 # ------------------------------------------------------------------------------
 
@@ -222,9 +134,6 @@ def load_model(config: ModelConfig) -> Model:
 
     # Load state from checkpoint
     checkpoint_params = pickle.loads(input_path.read_bytes())  # noqa
-
-    # Remap Meta's parameter names
-    params = {}
 
     # Inject prefix for multimodal checkpoints
     prefix = "text_model." if "text_model.tok_embeddings.weight" in checkpoint_params else ""
