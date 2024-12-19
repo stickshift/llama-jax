@@ -5,9 +5,14 @@ from typing import NamedTuple
 from jax import Array
 from jax.typing import ArrayLike
 
+from .checkpoint import ModelConfig, ModelParameters
+
 __all__ = [
     "Embeddings",
+    "create",
+    "forward",
 ]
+
 
 
 class Embeddings(NamedTuple):
@@ -16,6 +21,11 @@ class Embeddings(NamedTuple):
     values: Array
 
 
-def embeddings(state: Embeddings, token_ids: ArrayLike) -> Array:
+def create(config: ModelConfig, params: ModelParameters) -> Embeddings:
+    """Load Llama3 Embeddings."""
+    return Embeddings(values=params[f"tok_embeddings.weight"])
+
+
+def forward(state: Embeddings, token_ids: ArrayLike) -> Array:
     """Map token ids to embeddings."""
     return state.values[token_ids]

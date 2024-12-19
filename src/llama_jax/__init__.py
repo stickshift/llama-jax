@@ -1,9 +1,10 @@
-from . import chat, model
-from .embeddings import embeddings
-from .rms_norm import rms_norm
+from . import attention, chat, checkpoint, embeddings, model, rms_norm
 
 __all__ = [
+    "attention",
     "chat",
+    "checkpoint",
+    "embeddings",
     "model",
     "rms_norm",
 ]

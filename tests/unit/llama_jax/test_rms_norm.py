@@ -5,6 +5,32 @@ import llama_jax as ll
 from llama_jax.rms_norm import RMSNorm
 
 
+def test_factory():
+
+    #
+    # Givens
+    #
+
+    # I loaded config and parameters for 3.2 3B checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B")
+    params = ll.checkpoint.load_parameters(config)
+
+    #
+    # Whens
+    #
+
+    # I create RMSNorm for layers.0.attention_norm
+    norm = ll.rms_norm.create(config, params, "layers.0.attention_norm")
+
+    #
+    # Thens
+    #
+
+    # norm should be populated
+    assert norm.weight.shape == (config.d_model,)
+    assert norm.eps == config.rms_norm_eps
+
+
 def test_rms_norm_identity():
     """Verify normalizing an array of ones doesn't change the array."""
     #
@@ -25,7 +51,7 @@ def test_rms_norm_identity():
     #
 
     # I normalize x
-    y = ll.rms_norm(norm, x)
+    y = ll.rms_norm.forward(norm, x)
 
     #
     # Thens
@@ -59,10 +85,10 @@ def test_rms_norm_scaling():
     #
 
     # I normalize x
-    y0 = ll.rms_norm(norm, x)
+    y0 = ll.rms_norm.forward(norm, x)
 
     # I normalize 100*x
-    y1 = ll.rms_norm(norm, 100 * x)
+    y1 = ll.rms_norm.forward(norm, 100 * x)
 
     #
     # Thens

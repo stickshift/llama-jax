@@ -6,9 +6,12 @@ from jax import Array
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+from llama_jax.checkpoint import ModelConfig, ModelParameters
+
 __all__ = [
     "RMSNorm",
-    "rms_norm",
+    "create",
+    "forward",
 ]
 
 
@@ -20,7 +23,12 @@ class RMSNorm(NamedTuple):
     eps: float
 
 
-def rms_norm(state: RMSNorm, x: ArrayLike) -> Array:
+def create(config: ModelConfig, params: ModelParameters, path: str) -> RMSNorm:
+    """Load Llama3 RMSNorm."""
+    return RMSNorm(weight=params[f"{path}.weight"], eps=config.rms_norm_eps)
+
+
+def forward(state: RMSNorm, x: ArrayLike) -> Array:
     """Normalize x using RMS Normalization.
 
     See https://doi.org/10.48550/arXiv.1910.07467
