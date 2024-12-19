@@ -180,6 +180,11 @@ class Tokenizer:
             str: The decoded string.
         """
         # Typecast is safe here. Tiktoken doesn't do anything list-related with the sequence.
+
+        # Check for scalar array
+        if t.shape == ():
+            t = t.reshape(1)
+
         return self.model.decode(t.tolist())
 
     @staticmethod

@@ -33,4 +33,4 @@ def forward(state: RMSNorm, x: ArrayLike) -> Array:
 
     See https://doi.org/10.48550/arXiv.1910.07467
     """
-    return state.weight * x / jnp.sqrt(jnp.mean(x**2) + state.eps)
+    return state.weight * x / jnp.sqrt(jnp.mean(x**2, axis=-1, keepdims=True) + state.eps)

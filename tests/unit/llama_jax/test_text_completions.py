@@ -15,19 +15,22 @@ def test_323b_text():
     config = ll.checkpoint.load_config("Llama3.2-3B")
     params = ll.checkpoint.load_parameters(config)
 
+    # I created tokenizer
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+
     # I created Model
     model = ll.model.create(config, params)
 
-    # Greek prompt
+    # I split greek prompt into tokens
     prompt = "alpha beta gamma"
 
     #
     # Whens
     #
 
-    # I generate next token
+    # I generate next token w/ sampling disabled
     key, subkey = random.split(key)
-    token = next(ll.text.generate(subkey, config, model, prompt))
+    token = next(ll.text.generate(subkey, tokenizer, model, prompt, temperature=0))
 
     #
     # Thens

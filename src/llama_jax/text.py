@@ -9,6 +9,7 @@ from jax.typing import ArrayLike
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
 from llama_jax.model import Model
+from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
 __all__ = [
@@ -18,7 +19,7 @@ __all__ = [
 
 def generate(
     key: ArrayLike,
-    config: ModelConfig,
+    tokenizer: Tokenizer,
     model: Model,
     prompt: str,
     temperature: float | None = None,
@@ -31,15 +32,15 @@ def generate(
     # Defaults
     max_tokens = default_arg(max_tokens, 32)
 
-    # Load tokenizer
-    tokenizer = ll.checkpoint.load_tokenizer(config)
+    # Split prompt into tokens
+    token_ids = tokenizer.encode(prompt)
 
-    # Split prompt into mutable list of tokens
-    token_ids = tokenizer.encode(prompt).tolist()
+    # Convert token ids into mutable list
+    token_ids = token_ids.tolist()
 
     # Generate output until we get a stop token or we exceed max_tokens.
     for _ in range(max_tokens):
-        # Load token ids into array
+        # Initialize x with current token ids
         x = jnp.array(token_ids)
 
         # Transform token ids into next token logits
@@ -47,14 +48,20 @@ def generate(
 
         # Sample tokens
         key, subkey = random.split(key)
-        token_id = ll.head.sample_token(subkey, logits)
+        token_id = ll.head.sample_token(
+            subkey,
+            logits,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+        )
 
         # Check stopping criteria
         if token_id in tokenizer.stop_tokens:
             break
 
         # Yield token
-        yield tokenizer.decode(jnp.array([token_id]))
+        yield tokenizer.decode(token_id)
 
         # Append to end of sequence
         token_ids.append(token_id)

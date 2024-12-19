@@ -1,8 +1,7 @@
 """Head."""
-
 from typing import NamedTuple
 
-from jax import Array
+from jax import Array, random
 from jax import numpy as jnp
 from jax.nn import softmax
 from jax.typing import ArrayLike
@@ -59,7 +58,7 @@ def sample_token(
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None
-) -> int:
+) -> Array:
     """Select next token using temperature, top_p, and top_k sampling."""
 
     # Defaults
@@ -72,7 +71,7 @@ def sample_token(
 
     # If temperature is 0, return the top token
     if temperature == 0:
-        return jnp.argmax(logits, axis=-1).item()
+        return jnp.argmax(logits, axis=-1)
 
     # Apply temperature
     logits = logits / temperature
@@ -83,8 +82,9 @@ def sample_token(
     # Convert logits to probabilities
     probs = softmax(logits, axis=-1)
 
-    # Sort probabilities in descending order
-    probs, indices = probs.sort(descending=True)
+    # Sort probabilities in descending order, maintaining original indices
+    indices = jnp.argsort(probs, descending=True)
+    probs = probs[indices]
 
     # Top K
     # -----
@@ -96,7 +96,7 @@ def sample_token(
     # -----
 
     # Find cutoff where cumulative probability exceeds top_p
-    cumulative_mask = probs.cumsum(dim=-1) > top_p
+    cumulative_mask = probs.cumsum() > top_p
     threshold_index = jnp.argmax(cumulative_mask).item()
 
     # Only apply threshold if top_p was exceeded
@@ -107,9 +107,10 @@ def sample_token(
     # ----------------
 
     # Sample from remaining tokens weighted by probability
-    sampled_index = jnp.multinomial(probs, 1)
+    key, subkey = random.split(key)
+    sampled_index = random.choice(subkey, jnp.arange(probs.shape[0]), p=probs)
 
     # Convert sampled_index to original logits
     token_id = indices[sampled_index]
 
-    return token_id.item()
+    return token_id
