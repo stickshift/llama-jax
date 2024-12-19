@@ -7,7 +7,6 @@ from jax import random
 from jax.typing import ArrayLike
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig
 from llama_jax.model import Model
 from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
@@ -28,7 +27,6 @@ def generate(
     max_tokens: int | None = None,
 ) -> Iterator[str]:
     """Generate tokens given a prompt."""
-
     # Defaults
     max_tokens = default_arg(max_tokens, 32)
 

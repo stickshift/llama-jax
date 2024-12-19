@@ -71,7 +71,6 @@ def rope_frequencies(
     dtype: DTypeLike,
 ) -> tuple[Array, Array]:
     """Compute RoPE cos and sin rotation matrices."""
-
     # Calculate thetas
     i = jnp.arange(d // 2, dtype=dtype)
     thetas = base ** (-2 * i / d)

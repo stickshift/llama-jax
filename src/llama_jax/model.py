@@ -62,7 +62,6 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
 
 def forward(state: Model, token_ids: ArrayLike) -> Array:
     """Transform embeddings into token logits."""
-
     # Sequence length
     n = len(token_ids)
 

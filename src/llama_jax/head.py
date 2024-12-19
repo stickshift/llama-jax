@@ -1,4 +1,5 @@
 """Head."""
+
 from typing import NamedTuple
 
 from jax import Array, random
@@ -57,10 +58,9 @@ def sample_token(
     logits: ArrayLike,
     temperature: float | None = None,
     top_k: int | None = None,
-    top_p: float | None = None
+    top_p: float | None = None,
 ) -> Array:
     """Select next token using temperature, top_p, and top_k sampling."""
-
     # Defaults
     temperature = default_arg(temperature, 0.6)
     top_k = default_arg(top_k, 50)
@@ -90,7 +90,7 @@ def sample_token(
     # -----
 
     # Retain top k tokens
-    probs = probs[: top_k]
+    probs = probs[:top_k]
 
     # Top P
     # -----
