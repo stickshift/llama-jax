@@ -63,12 +63,14 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     )
 
 
-def rope_frequencies(config: ModelConfig, n: int) -> tuple[Array, Array]:
+def rope_frequencies(
+    n: int,
+    *,
+    base: float,
+    d: int,
+    dtype: DTypeLike,
+) -> tuple[Array, Array]:
     """Compute RoPE cos and sin rotation matrices."""
-    # Hyperparameters
-    base = config.rope_theta
-    d = config.d_head
-    dtype = config.dtype
 
     # Calculate thetas
     i = jnp.arange(d // 2, dtype=dtype)
@@ -85,8 +87,8 @@ def rope_frequencies(config: ModelConfig, n: int) -> tuple[Array, Array]:
     r_sin = jnp.sin(theta_stack)
 
     # Sanity check
-    assert r_cos.shape[0] == n and r_cos.shape[1] == config.d_head  # noqa: PT018
-    assert r_sin.shape[0] == n and r_sin.shape[1] == config.d_head  # noqa: PT018
+    assert r_cos.shape[0] == n and r_cos.shape[1] == d  # noqa: PT018
+    assert r_sin.shape[0] == n and r_sin.shape[1] == d  # noqa: PT018
 
     return r_cos, r_sin
 

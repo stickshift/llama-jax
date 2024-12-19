@@ -3,9 +3,8 @@
 from typing import NamedTuple
 
 from jax import Array
-from jax import numpy as jnp
 from jax.nn import silu
-from jax.typing import ArrayLike, DTypeLike
+from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters

@@ -1,4 +1,4 @@
-from . import attention, chat, checkpoint, embeddings, ffn, head, layer, model, rms_norm
+from . import attention, chat, checkpoint, embeddings, ffn, head, layer, model, rms_norm, text
 
 __all__ = [
     "attention",
@@ -10,4 +10,5 @@ __all__ = [
     "layer",
     "model",
     "rms_norm",
+    "text",
 ]

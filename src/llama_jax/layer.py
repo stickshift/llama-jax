@@ -27,7 +27,6 @@ class Layer(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters, path: str) -> Layer:
     """Load Llama3 Layer."""
-
     # Attention
     attention = ll.attention.create(config, params, f"{path}.attention")
 
@@ -39,7 +38,6 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Layer:
 
 def forward(state: Layer, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, mask: ArrayLike) -> Array:
     """Transform x using attention and feedforward network."""
-
     # Attention
     x = ll.attention.forward(state.attention, x, r_cos, r_sin, mask)
 

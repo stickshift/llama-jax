@@ -4,78 +4,87 @@ from collections.abc import Sequence
 from typing import NamedTuple
 
 from jax import Array
+from jax.typing import ArrayLike, DTypeLike
 
-from .head import Head
-from .layer import Layer
+import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
+from llama_jax.embeddings import Embeddings
+from llama_jax.head import Head
+from llama_jax.layer import Layer
 
 __all__ = [
     "Model",
+    "create",
+    "forward",
 ]
 
 
 class Model(NamedTuple):
     """Model state."""
 
-    embeddings: Array
+    rope_theta: float
+
+    d_head: int
+
+    dtype: DTypeLike
+
+    embeddings: Embeddings
 
     layers: Sequence[Layer]
 
     head: Head
 
 
-#
-#
-# def load_model(config: ModelConfig) -> Model:
-#     """Load model state from checkpoint."""
-#
-#     # Load state from checkpoint
-#     params = load_parameters(config)
-#
-#     # Inject prefix for multimodal checkpoints
-#     prefix = "text_model." if "text_model.tok_embeddings.weight" in params else ""
-#
-#     # Validate dtype
-#     assert params[f"{prefix}tok_embeddings.weight"].dtype == config.dtype
-#
-#     # Embeddings
-#     embeddings = params[f"{prefix}tok_embeddings.weight"]
-#
-#     # Layers
-#     layers = ()
-#     for layer_id in range(config.n_layers):
-#         attention = Attention(
-#             n_heads=config.n_heads,
-#             n_kv_heads=config.n_kv_heads,
-#             d_head=config.d_head,
-#             norm=RMSNorm(
-#                 weight=params[f"{prefix}layers.{layer_id}.attention_norm.weight"],
-#                 eps=config.rms_norm_eps,
-#             ),
-#             queries=params[f"{prefix}layers.{layer_id}.attention.wq.weight"],
-#             keys=params[f"{prefix}layers.{layer_id}.attention.wk.weight"],
-#             values=params[f"{prefix}layers.{layer_id}.attention.wv.weight"],
-#             output=params[f"{prefix}layers.{layer_id}.attention.wo.weight"],
-#         )
-#
-#         ffn = FFN(
-#             norm=RMSNorm(
-#                 weight=params[f"{prefix}layers.{layer_id}.ffn_norm.weight"],
-#                 eps=config.rms_norm_eps,
-#             ),
-#             input=params[f"{prefix}layers.{layer_id}.feed_forward.w3.weight"],
-#             gate=params[f"{prefix}layers.{layer_id}.feed_forward.w1.weight"],
-#             output=params[f"{prefix}layers.{layer_id}.feed_forward.w2.weight"],
-#         )
-#
-#         layers += (Layer(attention=attention, ffn=ffn),)
-#
-#     # Head
-#     head = Head(
-#         norm=RMSNorm(
-#             weight=params[f"{prefix}norm.weight"],
-#             eps=config.rms_norm_eps,
-#         ),
-#         output=params[f"{prefix}output.weight"],
-#     )
-#
-#     return Model(embeddings=embeddings, layers=layers, head=head)
+def create(config: ModelConfig, params: ModelParameters) -> Model:
+    """Load Llama3 Model."""
+    embeddings = ll.embeddings.create(config, params)
+
+    layers = tuple(
+        ll.layer.create(
+            config,
+            params,
+            f"layers.{i}",
+        )
+        for i in range(config.n_layers)
+    )
+
+    head = ll.head.create(config, params)
+
+    return Model(
+        rope_theta=config.rope_theta,
+        d_head=config.d_head,
+        dtype=config.dtype,
+        embeddings=embeddings,
+        layers=layers,
+        head=head,
+    )
+
+
+def forward(state: Model, token_ids: ArrayLike) -> Array:
+    """Transform embeddings into token logits."""
+
+    # Sequence length
+    n = len(token_ids)
+
+    # RoPE rotation matrices
+    r_cos, r_sin = ll.attention.rope_frequencies(
+        n,
+        base=state.rope_theta,
+        d=state.d_head,
+        dtype=state.dtype,
+    )
+
+    # Masked attention bias
+    m = ll.attention.masked_attention_bias(n, state.dtype)
+
+    # Map token ids to embeddings
+    x = ll.embeddings.forward(state.embeddings, token_ids)
+
+    # Apply layers
+    for layer in state.layers:
+        x = ll.layer.forward(layer, x, r_cos, r_sin, m)
+
+    # Apply head
+    x = ll.head.forward(state.head, x)
+
+    return x
