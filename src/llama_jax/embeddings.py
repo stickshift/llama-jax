@@ -5,7 +5,7 @@ from typing import NamedTuple
 from jax import Array
 from jax.typing import ArrayLike
 
-from .checkpoint import ModelConfig, ModelParameters
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 __all__ = [
     "Embeddings",

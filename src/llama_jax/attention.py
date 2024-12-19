@@ -45,7 +45,7 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     """Load Llama3 Attention."""
     parent_path = path.rsplit(".", 1)[0]
 
-    # Note we transpose q, k, v, o so we don't need to during attention calculation
+    # Note we transpose kernels so we don't need to during forward pass
     queries = params[f"{path}.wq.weight"].transpose()
     keys = params[f"{path}.wk.weight"].transpose()
     values = params[f"{path}.wv.weight"].transpose()
@@ -168,7 +168,7 @@ def combine_heads(x: Array) -> Array:
     return y
 
 
-def forward(state: Attention, x: ArrayLike, r_cos: Array, r_sin: Array, mask: Array) -> Array:
+def forward(state: Attention, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, mask: ArrayLike) -> Array:
     """Transform x using grouped query attention (GQA)."""
     # Save residuals
     residual = x
@@ -198,15 +198,15 @@ def forward(state: Attention, x: ArrayLike, r_cos: Array, r_sin: Array, mask: Ar
     # Compute attention for all heads in parallel
     #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V
     scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(state.d_head) + mask
-    a = softmax(scores, axis=-1) @ v
+    x = softmax(scores, axis=-1) @ v
 
     # Combine attention heads
-    a = combine_heads(a)
+    x = combine_heads(x)
 
     # Project outputs back to model space
-    a = a @ state.output
+    x = x @ state.output
 
     # Merge outputs with residuals
-    x = residual + a
+    x = residual + x
 
     return x
