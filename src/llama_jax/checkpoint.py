@@ -1,10 +1,10 @@
 """Llama Checkpoint."""
 
-import json
-import pickle
 from collections.abc import Mapping
 from enum import Enum
+import json
 from pathlib import Path
+import pickle
 from typing import NamedTuple
 
 from jax import Array
@@ -111,7 +111,9 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
 
 ModelParameters = Mapping[str, Array]
 
+
 def load_parameters(config: ModelConfig) -> ModelParameters:
+    """Load Llama3 parameters from checkpoint consolidated.00.jax."""
     # Validate
     input_path = config.checkpoint_path / "consolidated.00.jax"
     if not input_path.is_file():

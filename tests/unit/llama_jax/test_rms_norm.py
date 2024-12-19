@@ -6,7 +6,6 @@ from llama_jax.rms_norm import RMSNorm
 
 
 def test_factory():
-
     #
     # Givens
     #

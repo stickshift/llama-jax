@@ -2,7 +2,6 @@ import llama_jax as ll
 
 
 def test_factory():
-
     #
     # Givens
     #
@@ -27,7 +26,6 @@ def test_factory():
 
 
 def test_forward():
-
     #
     # Givens
     #
@@ -59,4 +57,3 @@ def test_forward():
 
     # x is n x d_model array
     assert x.shape == (n, config.d_model)
-

@@ -8,26 +8,23 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed in accordance with the terms of the Llama 3 Community License Agreement.
 
-import os
 from logging import getLogger
+import os
 from pathlib import Path
 from typing import (
     AbstractSet,
-    cast,
     Collection,
     Dict,
     Iterator,
     List,
     Literal,
     Optional,
-    Sequence,
     Union,
 )
 
 from jax import Array
 from jax import numpy as jnp
 import tiktoken
-
 from tiktoken.load import load_tiktoken_bpe
 
 logger = getLogger(__name__)
@@ -47,9 +44,7 @@ _INSTANCE = None
 
 
 class Tokenizer:
-    """
-    Tokenizing and encoding/decoding text using the Tiktoken tokenizer.
-    """
+    """Tokenizing and encoding/decoding text using the Tiktoken tokenizer."""
 
     special_tokens: Dict[str, int]
 
@@ -62,14 +57,11 @@ class Tokenizer:
         global _INSTANCE
 
         if _INSTANCE is None:
-            _INSTANCE = Tokenizer(
-                os.path.join(os.path.dirname(__file__), "tokenizer.model")
-            )
+            _INSTANCE = Tokenizer(os.path.join(os.path.dirname(__file__), "tokenizer.model"))
         return _INSTANCE
 
     def __init__(self, model_path: str):
-        """
-        Initializes the Tokenizer with a Tiktoken model.
+        """Initializes the Tokenizer with a Tiktoken model.
 
         Args:
             model_path (str): The path to the Tiktoken model file.
@@ -93,14 +85,11 @@ class Tokenizer:
             "<|image|>",
         ]
         reserved_tokens = [
-            f"<|reserved_special_token_{2 + i}|>"
-            for i in range(self.num_reserved_special_tokens - len(special_tokens))
+            f"<|reserved_special_token_{2 + i}|>" for i in range(self.num_reserved_special_tokens - len(special_tokens))
         ]
         special_tokens = special_tokens + reserved_tokens
 
-        self.special_tokens = {
-            token: num_base_tokens + i for i, token in enumerate(special_tokens)
-        }
+        self.special_tokens = {token: num_base_tokens + i for i, token in enumerate(special_tokens)}
         self.model = tiktoken.Encoding(
             name=Path(model_path).name,
             pat_str=self.pat_str,
@@ -131,8 +120,7 @@ class Tokenizer:
         allowed_special: Optional[Union[Literal["all"], AbstractSet[str]]] = None,
         disallowed_special: Union[Literal["all"], Collection[str]] = (),
     ) -> Array:
-        """
-        Encodes a string into a list of token IDs.
+        """Encodes a string into a list of token IDs.
 
         Args:
             s (str): The input string to be encoded.
@@ -152,7 +140,6 @@ class Tokenizer:
         - Setting `allowed_special` to "all" will treat all text corresponding
           to special tokens to be encoded as special tokens.
         """
-
         # Defaults
         bos = bos if bos is not None else True
         eos = eos if eos is not None else False
@@ -184,8 +171,7 @@ class Tokenizer:
         return jnp.array(t)
 
     def decode(self, t: Array) -> str:
-        """
-        Decodes a list of token IDs into a string.
+        """Decodes a list of token IDs into a string.
 
         Args:
             t (List[int]): The list of token IDs to be decoded.
@@ -197,13 +183,8 @@ class Tokenizer:
         return self.model.decode(t.tolist())
 
     @staticmethod
-    def _split_whitespaces_or_nonwhitespaces(
-        s: str, max_consecutive_slice_len: int
-    ) -> Iterator[str]:
-        """
-        Splits the string `s` so that each substring contains no more than `max_consecutive_slice_len`
-        consecutive whitespaces or consecutive non-whitespaces.
-        """
+    def _split_whitespaces_or_nonwhitespaces(s: str, max_consecutive_slice_len: int) -> Iterator[str]:
+        """Splits the string `s` so that each substring contains no more than `max_consecutive_slice_len` consecutive whitespaces or consecutive non-whitespaces."""
         current_slice_len = 0
         current_slice_is_space = s[0].isspace() if len(s) > 0 else False
         slice_start = 0

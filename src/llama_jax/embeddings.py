@@ -14,7 +14,6 @@ __all__ = [
 ]
 
 
-
 class Embeddings(NamedTuple):
     """Embeddings state."""
 
@@ -23,7 +22,7 @@ class Embeddings(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters) -> Embeddings:
     """Load Llama3 Embeddings."""
-    return Embeddings(values=params[f"tok_embeddings.weight"])
+    return Embeddings(values=params["tok_embeddings.weight"])
 
 
 def forward(state: Embeddings, token_ids: ArrayLike) -> Array:
