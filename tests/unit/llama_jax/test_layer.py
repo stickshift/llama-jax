@@ -1,6 +1,8 @@
 from jax import random
 
 import llama_jax as ll
+from llama_jax.attention import Attention
+from llama_jax.ffn import FFN
 
 
 def test_factory():
@@ -16,17 +18,16 @@ def test_factory():
     # Whens
     #
 
-    # I create FFN for layers.0.feed_forward
-    ffn = ll.ffn.create(config, params, "layers.0.feed_forward")
+    # I create Layer for layers.0
+    layer = ll.layer.create(config, params, "layers.0")
 
     #
     # Thens
     #
 
-    # ffn should be populated
-    assert ffn.input.shape == (config.d_model, config.d_ffn)
-    assert ffn.gate.shape == (config.d_model, config.d_ffn)
-    assert ffn.output.shape == (config.d_ffn, config.d_model)
+    # layer should be populated
+    assert isinstance(layer.attention, Attention)
+    assert isinstance(layer.ffn, FFN)
 
 
 def test_forward():
@@ -41,11 +42,15 @@ def test_forward():
     config = ll.checkpoint.load_config("Llama3.2-3B")
     params = ll.checkpoint.load_parameters(config)
 
-    # I created FFN for layers.0.feed_forward
-    ffn = ll.ffn.create(config, params, "layers.0.feed_forward")
+    # I created Layer for layers.0
+    layer = ll.layer.create(config, params, "layers.0")
 
     # sequence length
     n = 10
+
+    # I generated rope rotation matrices and masked attention bias
+    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
+    m = ll.attention.masked_attention_bias(n, config.dtype)
 
     # I generated sample embeddings
     key, subkey = random.split(key)
@@ -55,8 +60,8 @@ def test_forward():
     # Whens
     #
 
-    # I transform x w/ ffn
-    y = ll.ffn.forward(ffn, x)
+    # I transform x w/ layer
+    y = ll.layer.forward(layer, x, r_cos, r_sin, m)
 
     #
     # Thens
