@@ -1,5 +1,7 @@
 import pytest
 
+import llama_jax as ll
+
 
 @pytest.mark.wip
 def test_323b_boston():
@@ -8,20 +10,25 @@ def test_323b_boston():
     #
 
     # I loaded config for 3.2 3B Instruct checkpoint
-    config = load_config("Llama3.2-3B-Instruct")
+    config = ll.model.load_config("Llama3.2-3B-Instruct")
 
-    # I created a model
-    model = create_model(config)
+    # I loaded model
+    model = ll.model.load_model(config)
 
     # Boston prompt
-    messages = [{"role": "user", "content": "What is the capital of Massachusetts? Answer in one word."}]
+    messages = [
+        {
+            "role": "user",
+            "content": "What is the capital of Massachusetts? Answer in one word.",
+        }
+    ]
 
     #
     # Whens
     #
 
     # I pose question
-    response = chat_completion(model, messages=messages)
+    response = ll.chat.completion(model, messages=messages)
 
     #
     # Thens

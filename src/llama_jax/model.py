@@ -1,6 +1,6 @@
 """Llama Model."""
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 from enum import Enum
 import json
 from pathlib import Path
@@ -15,14 +15,17 @@ from .attention import Attention
 from .ffn import FFN
 from .head import Head
 from .layer import Layer
-from .normalization import RMSNorm
+from .rms_norm import RMSNorm
+from .tokenizer import Tokenizer
 
 __all__ = [
     "Model",
     "ModelConfig",
     "TrainingLevel",
     "load_config",
+    "load_parameters",
     "load_model",
+    "load_tokenizer",
 ]
 
 
@@ -109,6 +112,37 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
 
 
 # ------------------------------------------------------------------------------
+# Parameters
+# ------------------------------------------------------------------------------
+
+ModelParameters = Mapping[str, Array]
+
+def load_parameters(config: ModelConfig) -> ModelParameters:
+    # Validate
+    input_path = config.checkpoint_path / "consolidated.00.jax"
+    if not input_path.is_file():
+        raise ValueError(
+            f"Checkpoint {config.checkpoint_path.name} has not been converted to JAX format. See llama-jax CLI."
+        )
+
+    # Load state from checkpoint
+    params = pickle.loads(input_path.read_bytes())  # noqa
+
+    return params
+
+
+# ------------------------------------------------------------------------------
+# Tokenizer
+# ------------------------------------------------------------------------------
+
+
+def load_tokenizer(config: ModelConfig) -> Tokenizer:
+    """Load tokenizer from checkpoint."""
+    # Load tiktoken model
+    return Tokenizer(str(config.checkpoint_path / "tokenizer.model"))
+
+
+# ------------------------------------------------------------------------------
 # Model
 # ------------------------------------------------------------------------------
 
@@ -125,24 +159,18 @@ class Model(NamedTuple):
 
 def load_model(config: ModelConfig) -> Model:
     """Load model state from checkpoint."""
-    # Validate
-    input_path = config.checkpoint_path / "consolidated.00.jax"
-    if not input_path.is_file():
-        raise ValueError(
-            f"Checkpoint {config.checkpoint_path.name} has not been converted to JAX format. See llama-jax CLI."
-        )
 
     # Load state from checkpoint
-    checkpoint_params = pickle.loads(input_path.read_bytes())  # noqa
+    params = load_parameters(config)
 
     # Inject prefix for multimodal checkpoints
-    prefix = "text_model." if "text_model.tok_embeddings.weight" in checkpoint_params else ""
+    prefix = "text_model." if "text_model.tok_embeddings.weight" in params else ""
 
     # Validate dtype
-    assert checkpoint_params[f"{prefix}tok_embeddings.weight"].dtype == config.dtype
+    assert params[f"{prefix}tok_embeddings.weight"].dtype == config.dtype
 
     # Embeddings
-    embeddings = checkpoint_params[f"{prefix}tok_embeddings.weight"]
+    embeddings = params[f"{prefix}tok_embeddings.weight"]
 
     # Layers
     layers = ()
@@ -152,23 +180,23 @@ def load_model(config: ModelConfig) -> Model:
             n_kv_heads=config.n_kv_heads,
             d_head=config.d_head,
             norm=RMSNorm(
-                weight=checkpoint_params[f"{prefix}layers.{layer_id}.attention_norm.weight"],
+                weight=params[f"{prefix}layers.{layer_id}.attention_norm.weight"],
                 eps=config.rms_norm_eps,
             ),
-            queries=checkpoint_params[f"{prefix}layers.{layer_id}.attention.wq.weight"],
-            keys=checkpoint_params[f"{prefix}layers.{layer_id}.attention.wk.weight"],
-            values=checkpoint_params[f"{prefix}layers.{layer_id}.attention.wv.weight"],
-            output=checkpoint_params[f"{prefix}layers.{layer_id}.attention.wo.weight"],
+            queries=params[f"{prefix}layers.{layer_id}.attention.wq.weight"],
+            keys=params[f"{prefix}layers.{layer_id}.attention.wk.weight"],
+            values=params[f"{prefix}layers.{layer_id}.attention.wv.weight"],
+            output=params[f"{prefix}layers.{layer_id}.attention.wo.weight"],
         )
 
         ffn = FFN(
             norm=RMSNorm(
-                weight=checkpoint_params[f"{prefix}layers.{layer_id}.ffn_norm.weight"],
+                weight=params[f"{prefix}layers.{layer_id}.ffn_norm.weight"],
                 eps=config.rms_norm_eps,
             ),
-            input=checkpoint_params[f"{prefix}layers.{layer_id}.feed_forward.w3.weight"],
-            gate=checkpoint_params[f"{prefix}layers.{layer_id}.feed_forward.w1.weight"],
-            output=checkpoint_params[f"{prefix}layers.{layer_id}.feed_forward.w2.weight"],
+            input=params[f"{prefix}layers.{layer_id}.feed_forward.w3.weight"],
+            gate=params[f"{prefix}layers.{layer_id}.feed_forward.w1.weight"],
+            output=params[f"{prefix}layers.{layer_id}.feed_forward.w2.weight"],
         )
 
         layers += (Layer(attention=attention, ffn=ffn),)
@@ -176,10 +204,10 @@ def load_model(config: ModelConfig) -> Model:
     # Head
     head = Head(
         norm=RMSNorm(
-            weight=checkpoint_params[f"{prefix}norm.weight"],
+            weight=params[f"{prefix}norm.weight"],
             eps=config.rms_norm_eps,
         ),
-        output=checkpoint_params[f"{prefix}output.weight"],
+        output=params[f"{prefix}output.weight"],
     )
 
     return Model(embeddings=embeddings, layers=layers, head=head)

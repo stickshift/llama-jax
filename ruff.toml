@@ -85,7 +85,7 @@ ignore = [
 
 # Define custom packages as first-party
 known-first-party = [
-  "llama_kit",
+  "llama_jax",
 ]
 
 # Sort the imports by module, independent of import style.

@@ -8,7 +8,7 @@ from jax.typing import ArrayLike
 
 __all__ = [
     "RMSNorm",
-    "rms",
+    "rms_norm",
 ]
 
 
@@ -20,7 +20,7 @@ class RMSNorm(NamedTuple):
     eps: float
 
 
-def rms(state: RMSNorm, x: ArrayLike) -> Array:
+def rms_norm(state: RMSNorm, x: ArrayLike) -> Array:
     """Normalize x using RMS Normalization.
 
     See https://doi.org/10.48550/arXiv.1910.07467

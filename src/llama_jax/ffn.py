@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 from jax import Array
 
-from .normalization import RMSNorm
+from .rms_norm import RMSNorm
 
 __all__ = [
     "FFN",
