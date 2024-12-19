@@ -1,7 +1,6 @@
 import pickle
 
 import click
-from jax import numpy as jnp
 from jax.dlpack import from_dlpack
 
 from llama_jax.model import load_config
@@ -25,7 +24,7 @@ def cli():
 )
 def convert_checkpoint(checkpoint: str):
     """Convert Llama checkpoint to JAX."""
-    import torch
+    import torch  # noqa: PLC0415
 
     # Load config
     config = load_config(checkpoint)

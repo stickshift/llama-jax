@@ -1,6 +1,6 @@
-"""Llama Model"""
+"""Llama Model."""
 
-from collections.abc import Mapping, Sequence, Set
+from collections.abc import Sequence
 from enum import Enum
 import json
 from pathlib import Path
@@ -13,17 +13,17 @@ from jax.dtypes import bfloat16
 from jax.typing import ArrayLike, DTypeLike
 
 __all__ = [
-    "TrainingLevel",
-    "ModelConfig",
-    "load_config",
-    "Model",
-    "load_model",
-    "RMSNorm",
-    "rms",
-    "Attention",
     "FFN",
-    "Layer",
+    "Attention",
     "Head",
+    "Layer",
+    "Model",
+    "ModelConfig",
+    "RMSNorm",
+    "TrainingLevel",
+    "load_config",
+    "load_model",
+    "rms_norm",
 ]
 
 
@@ -132,6 +132,7 @@ def rms_norm(state: RMSNorm, x: ArrayLike) -> Array:
 # Attention
 # ------------------------------------------------------------------------------
 
+
 class Attention(NamedTuple):
     """Attention state."""
 
@@ -156,6 +157,7 @@ class Attention(NamedTuple):
 # FFN
 # ------------------------------------------------------------------------------
 
+
 class FFN(NamedTuple):
     """Feedforward Network state."""
 
@@ -172,6 +174,7 @@ class FFN(NamedTuple):
 # Layer
 # ------------------------------------------------------------------------------
 
+
 class Layer(NamedTuple):
     """Decoder layer state."""
 
@@ -184,6 +187,7 @@ class Layer(NamedTuple):
 # Head
 # ------------------------------------------------------------------------------
 
+
 class Head(NamedTuple):
     """Head state."""
 
@@ -191,9 +195,11 @@ class Head(NamedTuple):
 
     output: Array
 
+
 # ------------------------------------------------------------------------------
 # Model
 # ------------------------------------------------------------------------------
+
 
 class Model(NamedTuple):
     """Model state."""
@@ -207,7 +213,6 @@ class Model(NamedTuple):
 
 def load_model(config: ModelConfig) -> Model:
     """Load model state from checkpoint."""
-
     # Validate
     input_path = config.checkpoint_path / "consolidated.00.jax"
     if not input_path.is_file():

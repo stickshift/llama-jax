@@ -2,7 +2,6 @@ import llama_jax as ll
 
 
 def test_load_config():
-
     #
     # Givens
     #
@@ -26,7 +25,6 @@ def test_load_config():
 
 
 def test_load_model():
-
     #
     # Givens
     #
