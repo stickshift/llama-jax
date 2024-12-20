@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from typing import NamedTuple
 
 from jax import Array
-from jax.typing import ArrayLike, DTypeLike
+from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -22,11 +22,7 @@ __all__ = [
 class Model(NamedTuple):
     """Model state."""
 
-    rope_theta: float
-
-    d_head: int
-
-    dtype: DTypeLike
+    config: ModelConfig
 
     embeddings: Embeddings
 
@@ -51,9 +47,7 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     head = ll.head.create(config, params)
 
     return Model(
-        rope_theta=config.rope_theta,
-        d_head=config.d_head,
-        dtype=config.dtype,
+        config=config,
         embeddings=embeddings,
         layers=layers,
         head=head,
@@ -66,15 +60,10 @@ def forward(state: Model, token_ids: ArrayLike) -> Array:
     n = len(token_ids)
 
     # RoPE rotation matrices
-    r_cos, r_sin = ll.attention.rope_frequencies(
-        n,
-        base=state.rope_theta,
-        d=state.d_head,
-        dtype=state.dtype,
-    )
+    r_cos, r_sin = ll.attention.rope_frequencies(state.config, n)
 
     # Masked attention bias
-    m = ll.attention.masked_attention_bias(n, state.dtype)
+    m = ll.attention.masked_attention_bias(n, state.config.dtype)
 
     # Map token ids to embeddings
     x = ll.embeddings.forward(state.embeddings, token_ids)

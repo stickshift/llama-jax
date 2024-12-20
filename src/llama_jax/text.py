@@ -1,6 +1,8 @@
 """Text completions."""
 
 from collections.abc import Iterator
+from functools import partial
+from typing import Callable
 
 from jax import numpy as jnp
 from jax import random
@@ -8,29 +10,53 @@ from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.model import Model
-from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
 __all__ = [
-    "generate",
+    "generator",
 ]
 
 
-def generate(
-    key: ArrayLike,
-    tokenizer: Tokenizer,
+def generator(
     model: Model,
-    prompt: str,
+    key: ArrayLike | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
     max_tokens: int | None = None,
+) -> Callable[[str], Iterator[str]]:
+    """Create a text generator."""
+    # Defaults
+    key = default_arg(key, default_factory=random.key)
+    max_tokens = default_arg(max_tokens, 32)
+
+    return partial(
+        _generate,
+        model=model,
+        key=key,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        max_tokens=max_tokens,
+    )
+
+
+def _generate(
+    prompt: str,
+    *,
+    model: Model,
+    key: ArrayLike,
+    temperature: float | None,
+    top_k: int | None,
+    top_p: float | None,
+    max_tokens: int | None,
 ) -> Iterator[str]:
     """Generate tokens given a prompt."""
     # Defaults
     max_tokens = default_arg(max_tokens, 32)
 
     # Split prompt into tokens
+    tokenizer = ll.checkpoint.load_tokenizer(model.config)
     token_ids = tokenizer.encode(prompt)
 
     # Convert token ids into mutable list
@@ -47,8 +73,8 @@ def generate(
         # Sample tokens
         key, subkey = random.split(key)
         token_id = ll.head.sample_token(
-            subkey,
             logits,
+            key=subkey,
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,

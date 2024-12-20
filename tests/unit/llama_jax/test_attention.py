@@ -26,9 +26,7 @@ def test_factory():
     #
 
     # attention should be populated
-    assert attention.n_heads == config.n_heads
-    assert attention.n_kv_heads == config.n_kv_heads
-    assert attention.d_head == config.d_head
+    assert attention.config == config
     assert attention.queries.shape == (config.d_model, config.n_heads * config.d_head)
     assert attention.keys.shape == (config.d_model, config.n_kv_heads * config.d_head)
     assert attention.values.shape == (config.d_model, config.n_kv_heads * config.d_head)
@@ -51,12 +49,7 @@ def test_rope_frequencies():
     #
 
     # I generate rope rotation matrices
-    r_cos, r_sin = ll.attention.rope_frequencies(
-        n,
-        base=config.rope_theta,
-        d=config.d_head,
-        dtype=config.dtype,
-    )
+    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
 
     #
     # Thens
@@ -193,12 +186,7 @@ def test_forward():
     n = 10
 
     # I generated rope rotation matrices and masked attention bias
-    r_cos, r_sin = ll.attention.rope_frequencies(
-        n,
-        base=config.rope_theta,
-        d=config.d_head,
-        dtype=config.dtype,
-    )
+    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
     m = ll.attention.masked_attention_bias(n, config.dtype)
 
     # I generated sample embeddings

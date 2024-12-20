@@ -49,12 +49,7 @@ def test_forward():
     n = 10
 
     # I generated rope rotation matrices and masked attention bias
-    r_cos, r_sin = ll.attention.rope_frequencies(
-        n,
-        base=config.rope_theta,
-        d=config.d_head,
-        dtype=config.dtype,
-    )
+    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
     m = ll.attention.masked_attention_bias(n, config.dtype)
 
     # I generated sample embeddings

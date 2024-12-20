@@ -54,14 +54,16 @@ def forward(state: Head, x: ArrayLike) -> Array:
 
 
 def sample_token(
-    key: ArrayLike,
     logits: ArrayLike,
+    *,
+    key: ArrayLike | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
 ) -> Array:
     """Select next token using temperature, top_p, and top_k sampling."""
     # Defaults
+    key = default_arg(key, default_factory=random.key)
     temperature = default_arg(temperature, 0.6)
     top_k = default_arg(top_k, 50)
     top_p = default_arg(top_p, 0.9)

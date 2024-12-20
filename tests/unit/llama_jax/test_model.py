@@ -34,3 +34,34 @@ def test_factory():
 
     # head should be populated
     assert isinstance(model.head, Head)
+
+
+def test_forward():
+    #
+    # Givens
+    #
+
+    # I loaded config and parameters for 3.2 3B checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B")
+    params = ll.checkpoint.load_parameters(config)
+
+    # I generated sample token_ids
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+    token_ids = tokenizer.encode("alpha beta gamma")
+
+    # I created a Model
+    model = ll.model.create(config, params)
+
+    #
+    # Whens
+    #
+
+    # I transform token_ids into next token logits
+    y = ll.model.forward(model, token_ids)
+
+    #
+    # Thens
+    #
+
+    # y.shape should be vocab_size
+    assert y.shape == (config.vocab_size,)
