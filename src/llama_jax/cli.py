@@ -3,7 +3,7 @@ import pickle
 import click
 from jax.dlpack import from_dlpack
 
-from llama_jax.model import load_config
+import llama_jax as ll
 
 __all__ = [
     "cli",
@@ -27,7 +27,7 @@ def convert_checkpoint(checkpoint: str):
     import torch  # noqa: PLC0415
 
     # Load config
-    config = load_config(checkpoint)
+    config = ll.checkpoint.load_config(checkpoint)
 
     # Configure paths
     input_path = config.checkpoint_path / "consolidated.00.pth"

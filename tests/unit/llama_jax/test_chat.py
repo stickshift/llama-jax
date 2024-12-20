@@ -1,19 +1,22 @@
-import pytest
+from jax import random
 
 import llama_jax as ll
 
 
-@pytest.mark.wip
-def test_323b_boston():
+def test_323b():
     #
     # Givens
     #
 
-    # I loaded config for 3.2 3B Instruct checkpoint
-    config = ll.model.load_config("Llama3.2-3B-Instruct")
+    # rng
+    key = random.key(42)
 
-    # I loaded model
-    model = ll.model.load_model(config)
+    # I loaded config and parameters for 3.2 3B Instruct checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
+    params = ll.checkpoint.load_parameters(config)
+
+    # I created a Model
+    model = ll.model.create(config, params)
 
     # Boston prompt
     messages = [
@@ -23,12 +26,20 @@ def test_323b_boston():
         }
     ]
 
+    # I initialized a chat generator w/ token sampling disabled
+    key, subkey = random.split(key)
+    generator = ll.chat.generator(model, key=subkey, temperature=0)
+
     #
     # Whens
     #
 
     # I pose question
-    response = ll.chat.completion(model, messages=messages)
+    response = generator(messages)
+
+    #
+    # Thens
+    #
 
     #
     # Thens

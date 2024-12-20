@@ -3,7 +3,7 @@ from jax import random
 import llama_jax as ll
 
 
-def test_323b_text():
+def test_323b():
     #
     # Givens
     #

@@ -49,12 +49,9 @@ def _generate(
     temperature: float | None,
     top_k: int | None,
     top_p: float | None,
-    max_tokens: int | None,
+    max_tokens: int,
 ) -> Iterator[str]:
     """Generate tokens given a prompt."""
-    # Defaults
-    max_tokens = default_arg(max_tokens, 32)
-
     # Split prompt into tokens
     tokenizer = ll.checkpoint.load_tokenizer(model.config)
     token_ids = tokenizer.encode(prompt)
