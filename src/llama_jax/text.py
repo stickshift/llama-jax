@@ -27,7 +27,7 @@ def generator(
 ) -> Callable[[str], Iterator[str]]:
     """Create a text generator."""
     # Defaults
-    key = default_arg(key, default_factory=random.key)
+    key = default_arg(key, default_factory=partial(random.key, 42))
     max_tokens = default_arg(max_tokens, 32)
 
     return partial(

@@ -12,7 +12,10 @@ from llama_jax.model import Model
 from llama_jax.tools import default_arg
 
 __all__ = [
+    "Message",
+    "MessageLike",
     "generator",
+    "render_prompt",
 ]
 
 
@@ -43,7 +46,7 @@ def generator(
 ) -> Callable[[Sequence[MessageLike]], CompletionResponse]:
     """Create a chat generator."""
     # Defaults
-    key = default_arg(key, default_factory=random.key)
+    key = default_arg(key, default_factory=partial(random.key, 42))
     max_tokens = default_arg(max_tokens, 32)
 
     return partial(
@@ -69,7 +72,7 @@ def _generate(
 ) -> CompletionResponse:
     """Generate tokens given a prompt."""
     # Render prompt
-    prompt = _render_prompt(model.config, messages)
+    prompt = render_prompt(model.config, messages)
 
     # Split prompt into tokens
     tokenizer = ll.checkpoint.load_tokenizer(model.config)
@@ -113,7 +116,7 @@ def _generate(
     return CompletionResponse(messages=(*messages, message))
 
 
-def _render_prompt(config: ModelConfig, messages: Sequence[MessageLike]) -> str:
+def render_prompt(config: ModelConfig, messages: Sequence[MessageLike]) -> str:
     """Render messages."""
     prompt = ""
 
