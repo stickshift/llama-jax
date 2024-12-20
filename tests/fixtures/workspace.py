@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import dotenv
@@ -7,6 +8,7 @@ from pytest import Config
 __all__ = [
     "build_path",
     "datasets_path",
+    "log_levels",
     "workspace_env",
     "workspace_path",
 ]
@@ -34,3 +36,8 @@ def build_path(workspace_path: Path) -> Path:
 @pytest.fixture
 def datasets_path(build_path: Path) -> Path:
     return build_path / "datasets"
+
+
+@pytest.fixture(autouse=True)
+def log_levels(caplog):
+    caplog.set_level(logging.CRITICAL, logger="jax")

@@ -65,6 +65,7 @@ ignore = [
   "PD901",  # allow df
   "PLC2701",  # allow underscore API
   "PLC2801",  # allow dunder calls
+  "PLR2004",  # allow magic values
   "PLR6104",  # Ignore suggestions to use mutating |=
   "PLW3201",  # ignore dunder spelling
   "PT011",  # allow broad pytest.raises
@@ -85,7 +86,7 @@ ignore = [
 
 # Define custom packages as first-party
 known-first-party = [
-  "llama_kit",
+  "llama_jax",
 ]
 
 # Sort the imports by module, independent of import style.
@@ -142,4 +143,12 @@ mark-parentheses = false
   "D",  # docstrings
   "F811",  # redefined-while-unused
   "PLR2004",  # use magic values
+]
+
+# Meta modules
+"src/llama_jax/tokenizer.py" = [
+  "D103",
+  "D102",
+  "PLW0603",
+  "RUF013",
 ]
