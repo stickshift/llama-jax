@@ -11,25 +11,21 @@ def test_323b():
     # rng
     key = random.key(42)
 
-    # I loaded config and parameters for 3.2 3B checkpoint
+    # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
-    # I created a Model
-    model = ll.model.create(config, params)
-
-    # Greek prompt
-    prompt = "alpha beta gamma"
 
     # I initialized a text generator w/ token sampling disabled
     key, subkey = random.split(key)
-    generator = ll.text.generator(model, key=subkey, temperature=0)
+    generator = ll.text.generator(config, key=subkey, temperature=0)
+
+    # Greek prompt
+    prompt = "alpha beta gamma"
 
     #
     # Whens
     #
 
-    # I generate next token w/ sampling disabled
+    # I generate next token
     token = next(generator(prompt))
 
     #

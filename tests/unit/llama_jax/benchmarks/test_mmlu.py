@@ -94,21 +94,15 @@ def test_generate_answers(mmlu_dataset_path: Path):
     # Givens
     #
 
-    # I loaded dataset
+    # I loaded dataset and looked up question 7779
     dataset = load_dataset(mmlu_dataset_path)
-
-    # I looked up question 7779
     question = select_question(dataset.questions, qid=7779)
 
-    # I loaded config and parameters for 3.2 3B checkpoint
+    # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
-    # I created a Model
-    model = ll.model.create(config, params)
 
     # I initialized a mmlu generator
-    generator = ll.benchmarks.mmlu.generator(model)
+    generator = ll.benchmarks.mmlu.generator(config)
 
     #
     # Whens
@@ -134,21 +128,15 @@ def test_evaluate(mmlu_dataset_path: Path):
     # Givens
     #
 
-    # I loaded dataset
+    # I loaded dataset and looked up question 7779
     dataset = load_dataset(mmlu_dataset_path)
-
-    # I looked up question 7779
     question = select_question(dataset.questions, qid=7779)
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
-    params = ll.checkpoint.load_parameters(config)
-
-    # I created a Model
-    model = ll.model.create(config, params)
+    # I loaded config for 3.2 3B checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B")
 
     # I initialized a mmlu generator
-    generator = ll.benchmarks.mmlu.generator(model)
+    generator = ll.benchmarks.mmlu.generator(config)
 
     #
     # Whens

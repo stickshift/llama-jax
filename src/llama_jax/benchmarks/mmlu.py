@@ -23,6 +23,7 @@ import requests
 import llama_jax as ll
 from llama_jax.model import Model
 from llama_jax.chat import Message
+from llama_jax.checkpoint import ModelConfig
 from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
@@ -269,8 +270,10 @@ def generate_prompt(
 
 AnswerGenerator = Callable[[Questions], Iterator[Answer]]
 
+
 def generator(
-    model: Model,
+    config: ModelConfig,
+    model: Model | None = None,
     key: ArrayLike | None = None,
     n_shots: int | None = None,
     examples: Questions | None = None
@@ -280,27 +283,34 @@ def generator(
     key = default_arg(key, default_factory=partial(random.key, 42))
     n_shots = default_arg(n_shots, 0)
 
-    # Create tokenizer
-    tokenizer = ll.checkpoint.load_tokenizer(model.config)
+    # Initialize tokenizer
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+
+    # Initialize model if not provided
+    if model is None:
+        params = ll.checkpoint.load_parameters(config)
+        model = ll.model.create(config, params)
 
     return partial(
         _generate,
+        config=config,
+        tokenizer=tokenizer,
         model=model,
         key=key,
         n_shots=n_shots,
         examples=examples,
-        tokenizer=tokenizer,
     )
 
 
 def _generate(
     questions: Questions,
     *,
+    config: ModelConfig,
+    tokenizer: Tokenizer,
     model: Model,
     key: ArrayLike,
     n_shots: int,
     examples: Questions | None,
-    tokenizer: Tokenizer,
 ) -> Iterator[Answer]:
 
     # Look up token ids for MMLU options A, B, C, D
@@ -310,7 +320,7 @@ def _generate(
     for question in questions:
         # Generate prompt
         messages = generate_prompt(question, n_shots=n_shots, examples=examples)
-        prompt = ll.chat.render_prompt(model.config, messages)
+        prompt = ll.chat.render_prompt(config, messages)
 
         # Split prompt into tokens
         token_ids = tokenizer.encode(prompt)

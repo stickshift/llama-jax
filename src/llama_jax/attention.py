@@ -24,7 +24,11 @@ __all__ = [
 class Attention(NamedTuple):
     """Attention state."""
 
-    config: ModelConfig
+    n_heads: int
+
+    n_kv_heads: int
+
+    d_head: int
 
     norm: RMSNorm
 
@@ -48,7 +52,9 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     output = params[f"{path}.wo.weight"].transpose()
 
     return Attention(
-        config=config,
+        n_heads=config.n_heads,
+        n_kv_heads=config.n_kv_heads,
+        d_head=config.d_head,
         norm=ll.rms_norm.create(config, params, f"{parent_path}.attention_norm"),
         queries=queries,
         keys=keys,
@@ -57,12 +63,8 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     )
 
 
-def rope_frequencies(config: ModelConfig, n: int) -> tuple[Array, Array]:
+def rope_frequencies(n: int, *, base: float, d: int, dtype: DTypeLike) -> tuple[Array, Array]:
     """Compute RoPE cos and sin rotation matrices."""
-    # Hyperparameters
-    base = config.rope_theta
-    d = config.d_head
-    dtype = config.dtype
 
     # Calculate thetas
     i = jnp.arange(d // 2, dtype=dtype)
@@ -176,12 +178,12 @@ def forward(state: Attention, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, 
     v = x @ state.values
 
     # Split attention heads
-    q = split_heads(q, state.config.n_heads)
-    k = split_heads(k, state.config.n_kv_heads)
-    v = split_heads(v, state.config.n_kv_heads)
+    q = split_heads(q, state.n_heads)
+    k = split_heads(k, state.n_kv_heads)
+    v = split_heads(v, state.n_kv_heads)
 
     # Expand key/value groups
-    reps = state.config.n_heads // state.config.n_kv_heads
+    reps = state.n_heads // state.n_kv_heads
     k = k.repeat(reps, axis=0)
     v = v.repeat(reps, axis=0)
 
@@ -191,7 +193,7 @@ def forward(state: Attention, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, 
 
     # Compute attention for all heads in parallel
     #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V
-    scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(state.config.d_head) + mask
+    scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(state.d_head) + mask
     x = softmax(scores, axis=-1) @ v
 
     # Combine attention heads
