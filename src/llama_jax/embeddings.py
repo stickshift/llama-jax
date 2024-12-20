@@ -25,6 +25,6 @@ def create(config: ModelConfig, params: ModelParameters) -> Embeddings:
     return Embeddings(values=params["tok_embeddings.weight"])
 
 
-def forward(state: Embeddings, token_ids: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: Embeddings, token_ids: ArrayLike) -> Array:
     """Map token ids to embeddings."""
     return state.values[token_ids]

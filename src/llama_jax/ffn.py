@@ -46,13 +46,13 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> FFN:
     )
 
 
-def forward(state: FFN, x: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: FFN, x: ArrayLike) -> Array:
     """Transform x using feedforward network (FFN)."""
     # Save residuals
     residual = x
 
     # Normalize inputs
-    x = ll.rms_norm.forward(state.norm, x)
+    x = ll.rms_norm.forward(config, state.norm, x)
 
     # Apply SwiGLU transform
     x = silu(x @ state.gate) * (x @ state.input)

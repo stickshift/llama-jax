@@ -54,7 +54,7 @@ def test_forward():
     #
 
     # I transform embeddings into token logits
-    y = ll.head.forward(head, x)
+    y = ll.head.forward(config, head, x)
 
     #
     # Thens

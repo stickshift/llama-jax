@@ -79,7 +79,7 @@ def _generate(
         x = jnp.array(token_ids)
 
         # Transform token ids into next token logits
-        logits = ll.model.forward(model, x)
+        logits = ll.model.forward(config, model, x)
 
         # Sample tokens
         key, subkey = random.split(key)

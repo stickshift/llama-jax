@@ -3,10 +3,10 @@ from pathlib import Path
 import llama_jax as ll
 from llama_jax.benchmarks.mmlu import (
     OPTIONS,
+    evaluate_generator,
+    generate_prompt,
     load_dataset,
     select_question,
-    generate_prompt,
-    evaluate_generator,
 )
 
 

@@ -3,9 +3,8 @@
 from collections.abc import Sequence
 from typing import NamedTuple
 
-import jax
 from jax import Array
-from jax.typing import ArrayLike, DTypeLike
+from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -23,12 +22,6 @@ __all__ = [
 class Model(NamedTuple):
     """Model state."""
 
-    rope_theta: float
-
-    d_head: int
-
-    dtype: DTypeLike
-
     embeddings: Embeddings
 
     layers: Sequence[Layer]
@@ -38,8 +31,10 @@ class Model(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters) -> Model:
     """Load Llama3 Model."""
+    # Embeddings
     embeddings = ll.embeddings.create(config, params)
 
+    # Layers
     layers = tuple(
         ll.layer.create(
             config,
@@ -49,43 +44,35 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
         for i in range(config.n_layers)
     )
 
+    # Head
     head = ll.head.create(config, params)
 
     return Model(
-        rope_theta=config.rope_theta,
-        d_head=config.d_head,
-        dtype=config.dtype,
         embeddings=embeddings,
         layers=layers,
         head=head,
     )
 
 
-# @jax.jit
-def forward(state: Model, token_ids: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: Model, token_ids: ArrayLike) -> Array:
     """Transform embeddings into token logits."""
     # Sequence length
-    n = len(token_ids)
+    n = token_ids.shape[0]
 
     # RoPE rotation matrices
-    r_cos, r_sin = ll.attention.rope_frequencies(
-        n,
-        base=state.rope_theta,
-        d=state.d_head,
-        dtype=state.dtype,
-    )
+    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
 
     # Masked attention bias
-    m = ll.attention.masked_attention_bias(n, state.dtype)
+    m = ll.attention.masked_attention_bias(n, config.dtype)
 
     # Map token ids to embeddings
-    x = ll.embeddings.forward(state.embeddings, token_ids)
+    x = ll.embeddings.forward(config, state.embeddings, token_ids)
 
     # Apply layers
     for layer in state.layers:
-        x = ll.layer.forward(layer, x, r_cos, r_sin, m)
+        x = ll.layer.forward(config, layer, x, r_cos, r_sin, m)
 
     # Apply head
-    x = ll.head.forward(state.head, x)
+    x = ll.head.forward(config, state.head, x)
 
     return x

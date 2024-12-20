@@ -5,7 +5,7 @@ __all__ = [
     "build_path",
     "datasets_path",
     "log_levels",
+    "mmlu_dataset_path",
     "workspace_env",
     "workspace_path",
-    "mmlu_dataset_path",
 ]

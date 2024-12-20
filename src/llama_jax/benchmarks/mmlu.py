@@ -1,6 +1,6 @@
 """Utilities for running Massive Multitask Language Understanding (MMLU) benchmark."""
 
-from collections.abc import Sequence, Set, Iterator
+from collections.abc import Iterator, Sequence, Set
 import csv
 from functools import partial
 import logging
@@ -9,39 +9,39 @@ from random import sample
 import shutil
 import tarfile
 import tempfile
-from tqdm.auto import tqdm
-from typing import NamedTuple, Callable
+from typing import Callable, NamedTuple
 
-from jax import random
+from IPython.display import display
 from jax import numpy as jnp
+from jax import random
 from jax.nn import softmax
 from jax.typing import ArrayLike
 from pandas import DataFrame
-from IPython.display import display
 import requests
+from tqdm.auto import tqdm
 
 import llama_jax as ll
-from llama_jax.model import Model
 from llama_jax.chat import Message
 from llama_jax.checkpoint import ModelConfig
+from llama_jax.model import Model
 from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
 __all__ = [
     "OPTIONS",
     "Answer",
-    "Answers",
     "AnswerGenerator",
+    "Answers",
+    "Categories",
     "Question",
     "Questions",
-    "Categories",
     "display_questions",
     "download_dataset",
-    "load_dataset",
-    "select_question",
+    "evaluate_generator",
     "generate_prompt",
     "generator",
-    "evaluate_generator",
+    "load_dataset",
+    "select_question",
 ]
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,6 @@ def download_dataset(output_path: Path):
     total = int(response.headers["Content-Length"])
 
     with tqdm(total=total) as progress, tempfile.NamedTemporaryFile() as tarball:
-
         for data in response.iter_content(chunk_size=5 * 1024 * 1024):
             tarball.write(data)
             progress.update(n=len(data))
@@ -132,7 +131,6 @@ def download_dataset(output_path: Path):
 
 def load_dataset(dataset_path: Path) -> Dataset:
     """Load MMLU examples and questions."""
-
     executor = ll.tools.executor()
 
     def load_data_file(path: Path) -> Questions:
@@ -276,7 +274,7 @@ def generator(
     model: Model | None = None,
     key: ArrayLike | None = None,
     n_shots: int | None = None,
-    examples: Questions | None = None
+    examples: Questions | None = None,
 ) -> AnswerGenerator:
     """Create a text generator."""
     # Defaults
@@ -312,7 +310,6 @@ def _generate(
     n_shots: int,
     examples: Questions | None,
 ) -> Iterator[Answer]:
-
     # Look up token ids for MMLU options A, B, C, D
     mmlu_token_ids = {option: tokenizer.encode(option, bos=False)[0] for option in OPTIONS}
 
@@ -327,7 +324,7 @@ def _generate(
         logger.debug(f"Split prompt into {len(token_ids)} token ids")
 
         # Transform token ids into next token logits
-        logits = ll.model.forward(model, token_ids)
+        logits = ll.model.forward(config, model, token_ids)
 
         # Extract logits for MMLU options
         mmlu_logits = jnp.array([logits[mmlu_token_ids[option]] for option in OPTIONS])

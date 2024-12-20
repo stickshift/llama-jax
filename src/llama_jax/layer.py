@@ -36,12 +36,14 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Layer:
     return Layer(attention=attention, ffn=ffn)
 
 
-def forward(state: Layer, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, mask: ArrayLike) -> Array:
+def forward(
+    config: ModelConfig, state: Layer, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, mask: ArrayLike
+) -> Array:
     """Transform x using attention and feedforward network."""
     # Attention
-    x = ll.attention.forward(state.attention, x, r_cos, r_sin, mask)
+    x = ll.attention.forward(config, state.attention, x, r_cos, r_sin, mask)
 
     # FFN
-    x = ll.ffn.forward(state.ffn, x)
+    x = ll.ffn.forward(config, state.ffn, x)
 
     return x

@@ -4,8 +4,8 @@ from typing import Callable
 
 __all__ = [
     "default_arg",
-    "shell",
     "executor",
+    "shell",
 ]
 
 
@@ -40,9 +40,10 @@ def shell(command: str) -> str:
 
 _executor = None
 
+
 def executor() -> ThreadPoolExecutor:
     """Global executor."""
-    global _executor
+    global _executor  # noqa: PLW0603
     if _executor is None:
         _executor = ThreadPoolExecutor()
     return _executor
