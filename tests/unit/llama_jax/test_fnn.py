@@ -56,7 +56,7 @@ def test_forward():
     #
 
     # I transform x w/ ffn
-    y = ll.ffn.forward(ffn, x)
+    y = ll.ffn.forward(config, ffn, x)
 
     #
     # Thens

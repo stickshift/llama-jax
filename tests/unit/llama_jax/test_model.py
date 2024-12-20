@@ -57,7 +57,7 @@ def test_forward():
     #
 
     # I transform token_ids into next token logits
-    y = ll.model.forward(model, token_ids)
+    y = ll.model.forward(config, model, token_ids)
 
     #
     # Thens

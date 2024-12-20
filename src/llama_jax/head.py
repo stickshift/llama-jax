@@ -39,10 +39,10 @@ def create(config: ModelConfig, params: ModelParameters) -> Head:
     )
 
 
-def forward(state: Head, x: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: Head, x: ArrayLike) -> Array:
     """Transform embeddings into token logits."""
     # Normalize inputs
-    x = ll.rms_norm.forward(state.norm, x)
+    x = ll.rms_norm.forward(config, state.norm, x)
 
     # Use last embedding to represent the entire sequence
     x = x[-1]

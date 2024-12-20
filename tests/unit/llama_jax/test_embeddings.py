@@ -49,7 +49,7 @@ def test_forward():
     #
 
     # I map token ids to embeddings
-    x = ll.embeddings.forward(embeddings, token_ids)
+    x = ll.embeddings.forward(config, embeddings, token_ids)
 
     #
     # Thens

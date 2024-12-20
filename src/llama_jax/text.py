@@ -9,7 +9,9 @@ from jax import random
 from jax.typing import ArrayLike
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig
 from llama_jax.model import Model
+from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
 __all__ = [
@@ -18,7 +20,8 @@ __all__ = [
 
 
 def generator(
-    model: Model,
+    config: ModelConfig,
+    model: Model | None = None,
     key: ArrayLike | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
@@ -27,11 +30,21 @@ def generator(
 ) -> Callable[[str], Iterator[str]]:
     """Create a text generator."""
     # Defaults
-    key = default_arg(key, default_factory=random.key)
+    key = default_arg(key, default_factory=partial(random.key, 42))
     max_tokens = default_arg(max_tokens, 32)
+
+    # Initialize tokenizer
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+
+    # Initialize model if not provided
+    if model is None:
+        params = ll.checkpoint.load_parameters(config)
+        model = ll.model.create(config, params)
 
     return partial(
         _generate,
+        config=config,
+        tokenizer=tokenizer,
         model=model,
         key=key,
         temperature=temperature,
@@ -44,6 +57,8 @@ def generator(
 def _generate(
     prompt: str,
     *,
+    config: ModelConfig,
+    tokenizer: Tokenizer,
     model: Model,
     key: ArrayLike,
     temperature: float | None,
@@ -53,7 +68,6 @@ def _generate(
 ) -> Iterator[str]:
     """Generate tokens given a prompt."""
     # Split prompt into tokens
-    tokenizer = ll.checkpoint.load_tokenizer(model.config)
     token_ids = tokenizer.encode(prompt)
 
     # Convert token ids into mutable list
@@ -65,7 +79,7 @@ def _generate(
         x = jnp.array(token_ids)
 
         # Transform token ids into next token logits
-        logits = ll.model.forward(model, x)
+        logits = ll.model.forward(config, model, x)
 
         # Sample tokens
         key, subkey = random.split(key)

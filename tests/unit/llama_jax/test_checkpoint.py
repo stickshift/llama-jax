@@ -23,6 +23,9 @@ def test_load_config():
     # d_model should be 3072
     assert config.d_model == 3072
 
+    # config should be hashable
+    hash(config)
+
 
 def test_load_parameters():
     #

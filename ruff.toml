@@ -65,6 +65,7 @@ ignore = [
   "PD901",  # allow df
   "PLC2701",  # allow underscore API
   "PLC2801",  # allow dunder calls
+  "PLR0913", # allow any number of args
   "PLR2004",  # allow magic values
   "PLR6104",  # Ignore suggestions to use mutating |=
   "PLW3201",  # ignore dunder spelling

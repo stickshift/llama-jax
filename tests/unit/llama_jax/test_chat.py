@@ -11,12 +11,12 @@ def test_323b():
     # rng
     key = random.key(42)
 
-    # I loaded config and parameters for 3.2 3B Instruct checkpoint
+    # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
-    params = ll.checkpoint.load_parameters(config)
 
-    # I created a Model
-    model = ll.model.create(config, params)
+    # I initialized a chat generator w/ token sampling disabled
+    key, subkey = random.split(key)
+    generator = ll.chat.generator(config, key=subkey, temperature=0)
 
     # Boston prompt
     messages = [
@@ -26,20 +26,12 @@ def test_323b():
         }
     ]
 
-    # I initialized a chat generator w/ token sampling disabled
-    key, subkey = random.split(key)
-    generator = ll.chat.generator(model, key=subkey, temperature=0)
-
     #
     # Whens
     #
 
-    # I pose question
+    # I generate next response
     response = generator(messages)
-
-    #
-    # Thens
-    #
 
     #
     # Thens

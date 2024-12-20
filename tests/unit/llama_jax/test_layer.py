@@ -61,7 +61,7 @@ def test_forward():
     #
 
     # I transform x w/ layer
-    y = ll.layer.forward(layer, x, r_cos, r_sin, m)
+    y = ll.layer.forward(config, layer, x, r_cos, r_sin, m)
 
     #
     # Thens

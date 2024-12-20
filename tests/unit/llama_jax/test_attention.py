@@ -26,7 +26,6 @@ def test_factory():
     #
 
     # attention should be populated
-    assert attention.config == config
     assert attention.queries.shape == (config.d_model, config.n_heads * config.d_head)
     assert attention.keys.shape == (config.d_model, config.n_kv_heads * config.d_head)
     assert attention.values.shape == (config.d_model, config.n_kv_heads * config.d_head)
@@ -198,7 +197,7 @@ def test_forward():
     #
 
     # I transform x w/ attention
-    y = ll.attention.forward(attention, x, r_cos, r_sin, m)
+    y = ll.attention.forward(config, attention, x, r_cos, r_sin, m)
 
     #
     # Thens

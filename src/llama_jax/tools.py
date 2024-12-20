@@ -1,8 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
 import subprocess
 from typing import Callable
 
 __all__ = [
     "default_arg",
+    "executor",
     "shell",
 ]
 
@@ -34,3 +36,14 @@ def shell(command: str) -> str:
     )
 
     return result.stdout.strip()
+
+
+_executor = None
+
+
+def executor() -> ThreadPoolExecutor:
+    """Global executor."""
+    global _executor  # noqa: PLW0603
+    if _executor is None:
+        _executor = ThreadPoolExecutor()
+    return _executor

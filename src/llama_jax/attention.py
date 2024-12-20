@@ -24,8 +24,6 @@ __all__ = [
 class Attention(NamedTuple):
     """Attention state."""
 
-    config: ModelConfig
-
     norm: RMSNorm
 
     queries: Array
@@ -48,7 +46,6 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     output = params[f"{path}.wo.weight"].transpose()
 
     return Attention(
-        config=config,
         norm=ll.rms_norm.create(config, params, f"{parent_path}.attention_norm"),
         queries=queries,
         keys=keys,
@@ -131,9 +128,11 @@ def split_heads(x: Array, n_heads: int) -> Array:
     # Sanity check
     assert len(x.shape) >= 2
 
+    # Calculate dimensions from static shape
+    d_head = x.shape[-1] // n_heads
+
     # Split last dimension into n_heads groups:
     #   e.g (..., n, d_model) -> (..., n, n_heads, d_head)
-    d_head = x.shape[-1] // n_heads
     y = x.reshape(-1, n_heads, d_head)
 
     # Transpose dimensions -3 and -2
@@ -148,8 +147,9 @@ def combine_heads(x: Array) -> Array:
     # Sanity check
     assert len(x.shape) >= 3
 
-    d_head = x.shape[-1]
+    # Calculate dimensions from static shape
     n_heads = x.shape[-3]
+    d_head = x.shape[-1]
 
     # Transpose dimensions -3 and -2
     #   e.g (..., n_heads, n, d_head) -> (..., n, n_heads, d_head)
@@ -162,13 +162,20 @@ def combine_heads(x: Array) -> Array:
     return y
 
 
-def forward(state: Attention, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, mask: ArrayLike) -> Array:
+def forward(
+    config: ModelConfig,
+    state: Attention,
+    x: ArrayLike,
+    r_cos: ArrayLike,
+    r_sin: ArrayLike,
+    mask: ArrayLike,
+) -> Array:
     """Transform x using grouped query attention (GQA)."""
     # Save residuals
     residual = x
 
     # Normalize inputs
-    x = ll.rms_norm.forward(state.norm, x)
+    x = ll.rms_norm.forward(config, state.norm, x)
 
     # Project inputs to query, key, value spaces
     q = x @ state.queries
@@ -176,12 +183,12 @@ def forward(state: Attention, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, 
     v = x @ state.values
 
     # Split attention heads
-    q = split_heads(q, state.config.n_heads)
-    k = split_heads(k, state.config.n_kv_heads)
-    v = split_heads(v, state.config.n_kv_heads)
+    q = split_heads(q, config.n_heads)
+    k = split_heads(k, config.n_kv_heads)
+    v = split_heads(v, config.n_kv_heads)
 
     # Expand key/value groups
-    reps = state.config.n_heads // state.config.n_kv_heads
+    reps = config.n_heads // config.n_kv_heads
     k = k.repeat(reps, axis=0)
     v = v.repeat(reps, axis=0)
 
@@ -191,7 +198,7 @@ def forward(state: Attention, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, 
 
     # Compute attention for all heads in parallel
     #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V
-    scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(state.config.d_head) + mask
+    scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + mask
     x = softmax(scores, axis=-1) @ v
 
     # Combine attention heads
