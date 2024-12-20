@@ -1,8 +1,10 @@
 """Llama Model."""
 
 from collections.abc import Sequence
+from functools import partial
 from typing import NamedTuple
 
+import jax
 from jax import Array
 from jax.typing import ArrayLike
 
@@ -54,6 +56,7 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     )
 
 
+@partial(jax.jit, static_argnames=("config",))
 def forward(config: ModelConfig, state: Model, token_ids: ArrayLike) -> Array:
     """Transform embeddings into token logits."""
     # Sequence length
