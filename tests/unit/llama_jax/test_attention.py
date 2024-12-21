@@ -33,66 +33,6 @@ def test_factory():
     assert attention.output.shape == (config.d_model, config.d_model)
 
 
-def test_rope_frequencies():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # sequence length
-    n = 10
-
-    #
-    # Whens
-    #
-
-    # I generate rope rotation matrices
-    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
-
-    #
-    # Thens
-    #
-
-    # rotation matrices should have shape (n, d_head)
-    assert r_cos.shape == (n, config.d_head)
-    assert r_sin.shape == (n, config.d_head)
-
-
-def test_rope_swap():
-    #
-    # Givens
-    #
-
-    # Dimensions
-    n = 10
-    m = 20
-    d = 4
-
-    # I generate sample n x m x d data
-    x = jnp.arange(n * m * d).reshape(n, m, d)
-
-    #
-    # Whens
-    #
-
-    # I swap x
-    y = ll.attention.rope_swap(x)
-
-    #
-    # Thens
-    #
-
-    # [x0, x1, x2, x3] -> [-x1, x0, -x3, x2] along last dimension
-    for i in range(n):
-        for j in range(m):
-            assert y[i, j, 0] == -x[i, j, 1]
-            assert y[i, j, 1] == x[i, j, 0]
-            assert y[i, j, 2] == -x[i, j, 3]
-            assert y[i, j, 3] == x[i, j, 2]
-
-
 def test_masked_attention_bias():
     #
     # Givens
@@ -106,7 +46,7 @@ def test_masked_attention_bias():
     #
 
     # I generate masked attention bias term M
-    m = ll.attention.masked_attention_bias(n, jax.dtypes.bfloat16)
+    m = ll.attention.attention_mask(n, jax.dtypes.bfloat16)
 
     #
     # Thens
@@ -184,10 +124,10 @@ def test_forward(input_shape: tuple):
     # I created Attention for layers.0.attention
     attention = ll.attention.create(config, params, "layers.0.attention")
 
-    # I generated rope rotation matrices and masked attention bias
+    # I created rope and attention mask
     n = input_shape[-2]
-    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
-    m = ll.attention.masked_attention_bias(n, config.dtype)
+    rope = ll.rope.create(config, n)
+    mask = ll.attention.attention_mask(n, config.dtype)
 
     # I generated sample embeddings
     key, subkey = random.split(key)
@@ -198,7 +138,7 @@ def test_forward(input_shape: tuple):
     #
 
     # I transform x w/ attention
-    y = ll.attention.forward(config, attention, x, r_cos, r_sin, m)
+    y = ll.attention.forward(config, attention, rope, mask, x)
 
     #
     # Thens

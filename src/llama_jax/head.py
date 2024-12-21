@@ -81,7 +81,7 @@ def sample_token(
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
-) -> Array:
+) -> tuple[Array, Array]:
     """Select next token using temperature, top_p, and top_k sampling."""
     # Defaults
     key = default_arg(key, default_factory=random.key)
@@ -89,12 +89,15 @@ def sample_token(
     top_k = default_arg(top_k, 50)
     top_p = default_arg(top_p, 0.9)
 
+    # Split key
+    key, subkey = random.split(key)
+
     # Temperature
     # -----------
 
     # If temperature is 0, return the top token
     if temperature == 0:
-        return jnp.argmax(logits, axis=-1)
+        return jnp.argmax(logits, axis=-1), key
 
     # Apply temperature
     logits = logits / temperature
@@ -130,10 +133,9 @@ def sample_token(
     # ----------------
 
     # Sample from remaining tokens weighted by probability
-    key, subkey = random.split(key)
     sampled_index = random.choice(subkey, jnp.arange(probs.shape[0]), p=probs)
 
     # Convert sampled_index to original logits
     token_id = indices[sampled_index]
 
-    return token_id
+    return token_id, key

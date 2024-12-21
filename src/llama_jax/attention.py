@@ -10,14 +10,12 @@ from jax.typing import ArrayLike, DTypeLike
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.rms_norm import RMSNorm
+from llama_jax.rope import Rope
 
 __all__ = [
     "Attention",
     "create",
     "forward",
-    "rope_frequencies",
-    "rope_rotate",
-    "rope_swap",
 ]
 
 # ------------------------------------------------------------------------------
@@ -66,61 +64,7 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     )
 
 
-def rope_frequencies(config: ModelConfig, n: int) -> tuple[Array, Array]:
-    """Compute RoPE cos and sin rotation matrices."""
-    # Hyperparameters
-    base = config.rope_theta
-    d = config.d_head
-    dtype = config.dtype
-
-    # Calculate thetas
-    i = jnp.arange(d // 2, dtype=dtype)
-    thetas = base ** (-2 * i / d)
-
-    # Duplicate each theta, e.g. [theta_0, theta_1] -> [theta_0, theta_0, theta_1, theta_1]
-    thetas = jnp.repeat(thetas, 2)
-
-    # Repeat thetas for each position from 0 to n and stack in an (n, d_head) matrix
-    theta_stack = jnp.stack([m * thetas for m in range(n)])
-
-    # Apply cos, sin
-    r_cos = jnp.cos(theta_stack)
-    r_sin = jnp.sin(theta_stack)
-
-    # Sanity check
-    assert r_cos.shape[0] == n and r_cos.shape[1] == d  # noqa: PT018
-    assert r_sin.shape[0] == n and r_sin.shape[1] == d  # noqa: PT018
-
-    return r_cos, r_sin
-
-
-def rope_swap(x: ArrayLike) -> Array:
-    """Maps [x0, x1, x2, x3] -> [-x1, x0, -x3, x2] along last dimension."""
-    # Split last dimension into pairs
-    y = jnp.reshape(x, (-1, 2))
-
-    # Swap pairs. e.g. [x0, x1] -> [x1, x0]
-    y = y[:, ::-1]
-
-    # Restore original shape
-    y = jnp.reshape(y, x.shape)
-
-    # Create a mask for even indices along the last dimension
-    mask = jnp.arange(y.shape[-1]) % 2 == 0
-
-    # Apply the mask to multiply even indices by -1
-    #   e.g. [x0, x1, x2, x3] -> [-x0, x1, -x2, x3]
-    y = y * jnp.where(mask, -1, 1)
-
-    return y
-
-
-def rope_rotate(x, r_cos, r_sin):
-    """Rotate embeddings using RoPE transform."""
-    return (x * r_cos) + (rope_swap(x) * r_sin)
-
-
-def masked_attention_bias(n: int, dtype: DTypeLike) -> Array:
+def attention_mask(n: int, dtype: DTypeLike) -> Array:
     """Compute reusable masked attention bias term M.
 
     Returns:
@@ -193,10 +137,9 @@ def combine_heads(x: Array) -> Array:
 def forward(
     config: ModelConfig,
     state: Attention,
-    x: ArrayLike,
-    r_cos: ArrayLike,
-    r_sin: ArrayLike,
+    rope: Rope,
     mask: ArrayLike,
+    x: ArrayLike,
 ) -> Array:
     """Transform x using grouped query attention (GQA)."""
     # Save residuals
@@ -225,8 +168,8 @@ def forward(
     assert q.shape == k.shape == v.shape
 
     # Encode positions by rotating queries and keys
-    q = rope_rotate(q, r_cos, r_sin)
-    k = rope_rotate(k, r_cos, r_sin)
+    q = ll.rope.rotate(rope, q)
+    k = ll.rope.rotate(rope, k)
 
     # Compute attention for all heads in parallel
     #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V

@@ -47,10 +47,10 @@ def test_forward(input_shape: tuple):
     # I created Layer for layers.0
     layer = ll.layer.create(config, params, "layers.0")
 
-    # I generated rope rotation matrices and masked attention bias
+    # I created rope and attention mask
     n = input_shape[-2]
-    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
-    m = ll.attention.masked_attention_bias(n, config.dtype)
+    rope = ll.rope.create(config, n)
+    mask = ll.attention.attention_mask(n, config.dtype)
 
     # I generated sample embeddings
     key, subkey = random.split(key)
@@ -61,7 +61,7 @@ def test_forward(input_shape: tuple):
     #
 
     # I transform x w/ layer
-    y = ll.layer.forward(config, layer, x, r_cos, r_sin, m)
+    y = ll.layer.forward(config, layer, rope, mask, x)
 
     #
     # Thens

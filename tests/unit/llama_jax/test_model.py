@@ -40,16 +40,7 @@ def test_factory():
     assert isinstance(model.head, Head)
 
 
-@pytest.mark.parametrize(
-    "input_shape",
-    [
-        (10,),
-        (
-            2,
-            10,
-        ),
-    ],
-)
+@pytest.mark.parametrize("input_shape", [(10,), (2, 10)])
 def test_forward(input_shape: tuple):
     #
     # Givens
@@ -73,17 +64,68 @@ def test_forward(input_shape: tuple):
     # Whens
     #
 
-    # I transform token_ids into next token logits
-    y = ll.model.forward(config, model, token_ids)
+    # I transform token_ids
+    output = ll.model.forward(config, model, token_ids)
 
     #
     # Thens
     #
 
-    # y.shape should be (config.vocab_size,) for single inputs
+    # logits.shape should be (config.vocab_size,) for single inputs
     if len(input_shape) == 1:
-        assert y.shape == (config.vocab_size,)
+        assert output.logits.shape == (config.vocab_size,)
 
-    # y.shape should be (bs, config.vocab_size,) for batched inputs
+    # logits.shape should be (bs, config.vocab_size,) for batched inputs
     if len(input_shape) > 1:
-        assert y.shape == (input_shape[-2], config.vocab_size)
+        assert output.logits.shape == (input_shape[-2], config.vocab_size)
+
+
+@pytest.mark.wip
+def test_generate():
+    #
+    # Givens
+    #
+
+    # rng key
+    key = random.key(42)
+
+    # I loaded config and parameters for 3.2 3B checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B")
+    params = ll.checkpoint.load_parameters(config)
+
+    # I created a Model
+    model = ll.model.create(config, params)
+
+    # I split greek prompt into tokens
+    prompt = "alpha beta gamma"
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+    token_ids = tokenizer.encode(prompt)
+
+    #
+    # Whens
+    #
+
+    # Initialize x with entire sequence on first pass
+    x = token_ids
+
+    # I sample 5 tokens
+    for _ in range(5):
+        # Transform tokens
+        output = ll.model.forward(config, model, x)
+
+        # Sample next token
+        next_token_id, key = ll.head.sample_token(output.logits, key=key)
+        token_ids = jnp.concat([token_ids, next_token_id])
+
+        # Subsequent iterations process one token at a time
+        x = next_token_id
+
+    # I decode entire sequence
+    content = tokenizer.decode(token_ids)
+
+    #
+    # Thens
+    #
+
+    # content should be "alpha beta gamma delta epsilon zeta eta"
+    assert content.strip() == "alpha beta gamma delta epsilon zeta eta"

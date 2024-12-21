@@ -9,6 +9,7 @@ import llama_jax as ll
 from llama_jax.attention import Attention
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
+from llama_jax.rope import Rope
 
 __all__ = [
     "Layer",
@@ -37,11 +38,15 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Layer:
 
 
 def forward(
-    config: ModelConfig, state: Layer, x: ArrayLike, r_cos: ArrayLike, r_sin: ArrayLike, mask: ArrayLike
+    config: ModelConfig,
+    state: Layer,
+    rope: Rope,
+    mask: ArrayLike,
+    x: ArrayLike,
 ) -> Array:
     """Transform x using attention and feedforward network."""
     # Attention
-    x = ll.attention.forward(config, state.attention, x, r_cos, r_sin, mask)
+    x = ll.attention.forward(config, state.attention, rope, mask, x)
 
     # FFN
     x = ll.ffn.forward(config, state.ffn, x)

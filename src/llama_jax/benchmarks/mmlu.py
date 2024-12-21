@@ -324,7 +324,8 @@ def _generate(
         logger.debug(f"Split prompt into {len(token_ids)} token ids")
 
         # Transform token ids into next token logits
-        logits = ll.model.forward(config, model, token_ids)
+        output = ll.model.forward(config, model, token_ids)
+        logits = output.logits
 
         # Extract logits for MMLU options
         mmlu_logits = jnp.array([logits[mmlu_token_ids[option]] for option in OPTIONS])
