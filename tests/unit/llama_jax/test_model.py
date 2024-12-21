@@ -40,8 +40,7 @@ def test_factory():
     assert isinstance(model.head, Head)
 
 
-@pytest.mark.parametrize("input_shape", [(10,), (2, 10)])
-def test_forward(input_shape: tuple):
+def test_forward(bs: int, n: int):
     #
     # Givens
     #
@@ -58,7 +57,7 @@ def test_forward(input_shape: tuple):
 
     # I generated sample token_ids
     key, subkey = random.split(key)
-    token_ids = random.uniform(subkey, input_shape, maxval=config.vocab_size).astype(jnp.int32)
+    token_ids = random.uniform(subkey, (bs, n), maxval=config.vocab_size).astype(jnp.int32)
 
     #
     # Whens
@@ -71,13 +70,8 @@ def test_forward(input_shape: tuple):
     # Thens
     #
 
-    # logits.shape should be (config.vocab_size,) for single inputs
-    if len(input_shape) == 1:
-        assert output.logits.shape == (config.vocab_size,)
-
-    # logits.shape should be (bs, config.vocab_size,) for batched inputs
-    if len(input_shape) > 1:
-        assert output.logits.shape == (input_shape[-2], config.vocab_size)
+    # logits.shape should be (bs, config.vocab_size)
+    assert output.logits.shape == (bs, config.vocab_size)
 
 
 @pytest.mark.wip

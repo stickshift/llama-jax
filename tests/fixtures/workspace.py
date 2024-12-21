@@ -10,6 +10,7 @@ __all__ = [
     "build_path",
     "datasets_path",
     "log_levels",
+    "numpy_print_options",
     "workspace_env",
     "workspace_path",
 ]

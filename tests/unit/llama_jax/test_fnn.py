@@ -30,8 +30,7 @@ def test_factory():
     assert ffn.output.shape == (config.d_ffn, config.d_model)
 
 
-@pytest.mark.parametrize("input_shape", [(10, 3072), (2, 10, 3072)])
-def test_forward(input_shape: tuple):
+def test_forward(bs: int, n: int):
     #
     # Givens
     #
@@ -48,7 +47,7 @@ def test_forward(input_shape: tuple):
 
     # I generated sample embeddings
     key, subkey = random.split(key)
-    x = random.normal(subkey, input_shape)
+    x = random.normal(subkey, (bs, n, config.d_model))
 
     #
     # Whens

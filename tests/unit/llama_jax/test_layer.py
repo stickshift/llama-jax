@@ -31,8 +31,7 @@ def test_factory():
     assert isinstance(layer.ffn, FFN)
 
 
-@pytest.mark.parametrize("input_shape", [(10, 3072), (2, 10, 3072)])
-def test_forward(input_shape: tuple):
+def test_forward(bs: int, n: int):
     #
     # Givens
     #
@@ -48,13 +47,12 @@ def test_forward(input_shape: tuple):
     layer = ll.layer.create(config, params, "layers.0")
 
     # I created rope and attention mask
-    n = input_shape[-2]
     rope = ll.rope.create(config, n)
     mask = ll.attention.attention_mask(n, config.dtype)
 
     # I generated sample embeddings
     key, subkey = random.split(key)
-    x = random.normal(subkey, input_shape)
+    x = random.normal(subkey, (bs, n, config.d_model))
 
     #
     # Whens

@@ -28,7 +28,7 @@ def test_factory():
     assert embeddings.values.shape == (config.vocab_size, config.d_model)
 
 
-def test_forward():
+def test_forward(bs: int, n: int):
     #
     # Givens
     #
@@ -42,10 +42,6 @@ def test_forward():
 
     # I created Embeddings
     embeddings = ll.embeddings.create(config, params)
-
-    # bs, n
-    bs = 2
-    n = 10
 
     # I generated sample token_ids
     key, subkey = random.split(key)

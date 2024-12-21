@@ -32,23 +32,19 @@ def test_factory():
     assert norm.weight.shape == (config.d_model,)
 
 
-@pytest.mark.parametrize("input_shape", [(10, 100), (2, 10, 100)])
-def test_rms_norm_shape(input_shape: tuple):
-    """Verify normalizing factor is calculated separately for each sample.
+def test_rms_norm_shape(bs: int, n: int):
+    """Verify normalizing factor is calculated separately for each sample."""
 
-    Args:
-        input_shape: (n, d_model) or (bs, n, d_model)
-    """
     #
     # Givens
     #
 
     # I created RMSNorm with weights of 1.0, epsilon of 0
     config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
-    norm = RMSNorm(weight=jnp.ones(input_shape[-1]))
+    norm = RMSNorm(weight=jnp.ones(config.d_model))
 
     # x is array of ones
-    x = jnp.reshape(jnp.ones(prod(input_shape)), input_shape)
+    x = jnp.reshape(jnp.ones(bs * n * config.d_model), (bs, n, config.d_model))
 
     #
     # Whens
@@ -61,27 +57,22 @@ def test_rms_norm_shape(input_shape: tuple):
     # Thens
     #
 
-    # factor should have shape (..., 1)
-    assert factor.shape == input_shape[:-1] + (1,)
+    # factor should have shape (bs, n, 1)
+    assert factor.shape == (bs, n, 1)
 
 
-@pytest.mark.parametrize("input_shape", [(10, 100), (2, 10, 100)])
-def test_rms_norm_identity(input_shape: tuple):
-    """Verify normalizing an array of ones doesn't change the array.
-
-    Args:
-        input_shape: (n, d_model) or (bs, n, d_model)
-    """
+def test_rms_norm_identity(bs: int, n: int):
+    """Verify normalizing an array of ones doesn't change the array."""
     #
     # Givens
     #
 
     # I created RMSNorm with weights of 1.0, epsilon of 0
     config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
-    norm = RMSNorm(weight=jnp.ones(input_shape[-1]))
+    norm = RMSNorm(weight=jnp.ones(config.d_model))
 
     # x is array of ones
-    x = jnp.reshape(jnp.ones(prod(input_shape)), input_shape)
+    x = jnp.reshape(jnp.ones(bs * n * config.d_model), (bs, n, config.d_model))
 
     #
     # Whens
@@ -98,13 +89,9 @@ def test_rms_norm_identity(input_shape: tuple):
     assert (y == x).all()
 
 
-@pytest.mark.parametrize("input_shape", [(10, 100), (2, 10, 100)])
-def test_rms_norm_scaling(input_shape: tuple):
-    """Verify RMS normalization is invariant to scaling.
+def test_rms_norm_scaling(bs: int, n: int):
+    """Verify RMS normalization is invariant to scaling."""
 
-    Args:
-        input_shape: (n, d_model) or (bs, n, d_model)
-    """
     #
     # Givens
     #
@@ -114,11 +101,11 @@ def test_rms_norm_scaling(input_shape: tuple):
 
     # I created RMSNorm with weights of 1.0, epsilon of 0
     config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
-    norm = RMSNorm(weight=jnp.ones(input_shape[-1]))
+    norm = RMSNorm(weight=jnp.ones(config.d_model))
 
     # x is normally distributed w/ mean of 100 and std of 10
     key, subkey = random.split(key)
-    x = 10 * random.normal(subkey, input_shape) + 100
+    x = 10 * random.normal(subkey, (bs, n, config.d_model)) + 100
 
     #
     # Whens

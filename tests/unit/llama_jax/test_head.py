@@ -28,8 +28,7 @@ def test_factory():
     assert head.output.shape == (config.d_model, config.vocab_size)
 
 
-@pytest.mark.parametrize("input_shape", [(10, 3072), (2, 10, 3072)])
-def test_forward(input_shape: tuple):
+def test_forward(bs: int, n: int):
     #
     # Givens
     #
@@ -46,7 +45,7 @@ def test_forward(input_shape: tuple):
 
     # I generated sample embeddings
     key, subkey = random.split(key)
-    x = random.normal(subkey, input_shape)
+    x = random.normal(subkey, (bs, n, config.d_model))
 
     #
     # Whens
@@ -59,10 +58,5 @@ def test_forward(input_shape: tuple):
     # Thens
     #
 
-    # y.shape should be (config.vocab_size,) for single inputs
-    if len(input_shape) == 2:
-        assert y.shape == (config.vocab_size,)
-
-    # y.shape should be (bs, config.vocab_size,) for batched inputs
-    if len(input_shape) > 2:
-        assert y.shape == (input_shape[-3], config.vocab_size)
+    # y.shape should be (bs, config.vocab_size)
+    assert y.shape == (bs, config.vocab_size)
