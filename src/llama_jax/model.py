@@ -60,7 +60,7 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
 def forward(config: ModelConfig, state: Model, token_ids: ArrayLike) -> Array:
     """Transform embeddings into token logits."""
     # Sequence length
-    n = token_ids.shape[0]
+    n = token_ids.shape[-1]
 
     # RoPE rotation matrices
     r_cos, r_sin = ll.attention.rope_frequencies(config, n)

@@ -20,6 +20,18 @@ __all__ = [
 ]
 
 
+# ------------------------------------------------------------------------------
+# Constants
+# ------------------------------------------------------------------------------
+
+_TOKEN_AXIS = -2
+
+
+# ------------------------------------------------------------------------------
+# Head
+# ------------------------------------------------------------------------------
+
+
 class Head(NamedTuple):
     """Head state."""
 
@@ -44,8 +56,17 @@ def forward(config: ModelConfig, state: Head, x: ArrayLike) -> Array:
     # Normalize inputs
     x = ll.rms_norm.forward(config, state.norm, x)
 
-    # Use last embedding to represent the entire sequence
+    # Use last embedding to represent the entire sequence.
+    #   Note: If x is batched, we need to swap token dimension to front before using x[-1]
+    #
+    swap = x.ndim > 2
+    if swap:
+        x = jnp.swapaxes(x, 0, _TOKEN_AXIS)
+
     x = x[-1]
+
+    if swap:
+        x = jnp.swapaxes(x, 0, _TOKEN_AXIS)
 
     # Project outputs to token space
     x = x @ state.output

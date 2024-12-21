@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 import dotenv
+import numpy as np
 import pytest
 from pytest import Config
 
@@ -41,3 +42,8 @@ def datasets_path(build_path: Path) -> Path:
 @pytest.fixture(autouse=True)
 def log_levels(caplog):
     caplog.set_level(logging.CRITICAL, logger="jax")
+
+
+@pytest.fixture(autouse=True)
+def numpy_print_options():
+    np.set_printoptions(linewidth=200)

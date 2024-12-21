@@ -20,6 +20,18 @@ __all__ = [
     "rope_swap",
 ]
 
+# ------------------------------------------------------------------------------
+# Constants
+# ------------------------------------------------------------------------------
+
+_HEAD_AXIS = -3
+_TOKEN_AXIS = -2
+_MODEL_AXIS = -1
+
+# ------------------------------------------------------------------------------
+# Attention
+# ------------------------------------------------------------------------------
+
 
 class Attention(NamedTuple):
     """Attention state."""
@@ -85,13 +97,13 @@ def rope_frequencies(config: ModelConfig, n: int) -> tuple[Array, Array]:
 def rope_swap(x: ArrayLike) -> Array:
     """Maps [x0, x1, x2, x3] -> [-x1, x0, -x3, x2] along last dimension."""
     # Split last dimension into pairs
-    y = x.reshape(-1, 2)
+    y = jnp.reshape(x, (-1, 2))
 
     # Swap pairs. e.g. [x0, x1] -> [x1, x0]
     y = y[:, ::-1]
 
     # Restore original shape
-    y = y.reshape(x.shape)
+    y = jnp.reshape(y, x.shape)
 
     # Create a mask for even indices along the last dimension
     mask = jnp.arange(y.shape[-1]) % 2 == 0
@@ -123,41 +135,57 @@ def masked_attention_bias(n: int, dtype: DTypeLike) -> Array:
     return m.astype(dtype)
 
 
-def split_heads(x: Array, n_heads: int) -> Array:
-    """Split attention heads."""
+def split_heads(x: ArrayLike, n_heads: int) -> Array:
+    """Split attention heads.
+
+    Args:
+        x (Array): Input tensor w/ shape (..., n, d_model)
+        n_heads (int): Number of attention heads
+
+    Returns:
+        Array: x reshaped to (..., n_heads, n, d_head)
+    """
     # Sanity check
     assert len(x.shape) >= 2
 
     # Calculate dimensions from static shape
-    d_head = x.shape[-1] // n_heads
+    d_head = x.shape[_MODEL_AXIS] // n_heads
 
     # Split last dimension into n_heads groups:
     #   e.g (..., n, d_model) -> (..., n, n_heads, d_head)
-    y = x.reshape(-1, n_heads, d_head)
+    shape = x.shape[:-1] + (n_heads, d_head)
+    y = jnp.reshape(x, shape)
 
-    # Transpose dimensions -3 and -2
+    # Swap token and head dimensions
     #   e.g (..., n, n_heads, d_head) -> (..., n_heads, n, d_head)
-    y = y.swapaxes(-3, -2)
+    y = jnp.swapaxes(y, _HEAD_AXIS, _TOKEN_AXIS)
 
     return y
 
 
 def combine_heads(x: Array) -> Array:
-    """Combine attention heads."""
+    """Combine attention heads.
+
+    Args:
+        x (Array): Input tensor w/ shape (..., n_heads, n, d_head)
+
+    Returns:
+        Array: x reshaped to (..., n, n_heads * d_head)
+    """
     # Sanity check
     assert len(x.shape) >= 3
 
     # Calculate dimensions from static shape
-    n_heads = x.shape[-3]
-    d_head = x.shape[-1]
+    n_heads, d_head = x.shape[_HEAD_AXIS], x.shape[_MODEL_AXIS]
 
-    # Transpose dimensions -3 and -2
+    # Swap token and head dimensions
     #   e.g (..., n_heads, n, d_head) -> (..., n, n_heads, d_head)
-    y = x.swapaxes(-3, -2)
+    y = jnp.swapaxes(x, _HEAD_AXIS, _TOKEN_AXIS)
 
     # Merge last 2 dimensions
-    #   e.g (..., n, n_heads, d_head) -> (..., n, n_heads*d_head)
-    y = y.reshape(-1, n_heads * d_head)
+    #   e.g (..., n, n_heads, d_head) -> (..., n, n_heads * d_head)
+    shape = y.shape[:-2] + (n_heads * d_head,)
+    y = jnp.reshape(y, shape)
 
     return y
 
@@ -183,14 +211,18 @@ def forward(
     v = x @ state.values
 
     # Split attention heads
+    #   e.g. (..., n, d_model) -> (..., n_heads, n, d_head)
     q = split_heads(q, config.n_heads)
     k = split_heads(k, config.n_kv_heads)
     v = split_heads(v, config.n_kv_heads)
 
-    # Expand key/value groups
+    # Expand key/value groups along n_heads dimension
     reps = config.n_heads // config.n_kv_heads
-    k = k.repeat(reps, axis=0)
-    v = v.repeat(reps, axis=0)
+    k = k.repeat(reps, axis=_HEAD_AXIS)
+    v = v.repeat(reps, axis=_HEAD_AXIS)
+
+    # Sanity check
+    assert q.shape == k.shape == v.shape
 
     # Encode positions by rotating queries and keys
     q = rope_rotate(q, r_cos, r_sin)

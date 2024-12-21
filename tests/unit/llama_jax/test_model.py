@@ -1,3 +1,7 @@
+from jax import numpy as jnp
+from jax import random
+import pytest
+
 import llama_jax as ll
 from llama_jax.embeddings import Embeddings
 from llama_jax.head import Head
@@ -36,21 +40,34 @@ def test_factory():
     assert isinstance(model.head, Head)
 
 
-def test_forward():
+@pytest.mark.parametrize(
+    "input_shape",
+    [
+        (10,),
+        (
+            2,
+            10,
+        ),
+    ],
+)
+def test_forward(input_shape: tuple):
     #
     # Givens
     #
+
+    # rng key
+    key = random.key(42)
 
     # I loaded config and parameters for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
     params = ll.checkpoint.load_parameters(config)
 
-    # I generated sample token_ids
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-    token_ids = tokenizer.encode("alpha beta gamma")
-
     # I created a Model
     model = ll.model.create(config, params)
+
+    # I generated sample token_ids
+    key, subkey = random.split(key)
+    token_ids = random.uniform(subkey, input_shape, maxval=config.vocab_size).astype(jnp.int32)
 
     #
     # Whens
@@ -63,5 +80,10 @@ def test_forward():
     # Thens
     #
 
-    # y.shape should be vocab_size
-    assert y.shape == (config.vocab_size,)
+    # y.shape should be (config.vocab_size,) for single inputs
+    if len(input_shape) == 1:
+        assert y.shape == (config.vocab_size,)
+
+    # y.shape should be (bs, config.vocab_size,) for batched inputs
+    if len(input_shape) > 1:
+        assert y.shape == (input_shape[-2], config.vocab_size)

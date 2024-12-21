@@ -1,4 +1,5 @@
 from jax import random
+import pytest
 
 import llama_jax as ll
 
@@ -29,7 +30,8 @@ def test_factory():
     assert ffn.output.shape == (config.d_ffn, config.d_model)
 
 
-def test_forward():
+@pytest.mark.parametrize("input_shape", [(10, 3072), (2, 10, 3072)])
+def test_forward(input_shape: tuple):
     #
     # Givens
     #
@@ -44,12 +46,9 @@ def test_forward():
     # I created FFN for layers.0.feed_forward
     ffn = ll.ffn.create(config, params, "layers.0.feed_forward")
 
-    # sequence length
-    n = 10
-
     # I generated sample embeddings
     key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    x = random.normal(subkey, input_shape)
 
     #
     # Whens

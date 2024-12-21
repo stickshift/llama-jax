@@ -1,4 +1,5 @@
 from jax import random
+import pytest
 
 import llama_jax as ll
 
@@ -27,7 +28,8 @@ def test_factory():
     assert head.output.shape == (config.d_model, config.vocab_size)
 
 
-def test_forward():
+@pytest.mark.parametrize("input_shape", [(10, 3072), (2, 10, 3072)])
+def test_forward(input_shape: tuple):
     #
     # Givens
     #
@@ -35,19 +37,16 @@ def test_forward():
     # rng
     key = random.key(42)
 
-    # I loaded config and parameters for 3.2 3B checkpoint
+    # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
+
+    # I initialized Head
     params = ll.checkpoint.load_parameters(config)
-
-    # I created Head
     head = ll.head.create(config, params)
-
-    # sequence length
-    n = 10
 
     # I generated sample embeddings
     key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    x = random.normal(subkey, input_shape)
 
     #
     # Whens
@@ -60,5 +59,10 @@ def test_forward():
     # Thens
     #
 
-    # y.shape should be vocab_size
-    assert y.shape == (config.vocab_size,)
+    # y.shape should be (config.vocab_size,) for single inputs
+    if len(input_shape) == 2:
+        assert y.shape == (config.vocab_size,)
+
+    # y.shape should be (bs, config.vocab_size,) for batched inputs
+    if len(input_shape) > 2:
+        assert y.shape == (input_shape[-3], config.vocab_size)

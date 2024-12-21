@@ -1,6 +1,7 @@
 import jax
 from jax import numpy as jnp
 from jax import random
+import pytest
 
 import llama_jax as ll
 
@@ -126,13 +127,14 @@ def test_attention_heads():
     #
 
     # Dimensions
+    bs = 2
     n = 10
     d_model = 128
     d_head = 32
     n_heads = d_model // d_head
 
     # I generated sample embeddings
-    x = jnp.arange(n * d_model).reshape(n, d_model)
+    x = jnp.arange(bs * n * d_model).reshape(bs, n, d_model)
 
     #
     # Whens
@@ -145,8 +147,8 @@ def test_attention_heads():
     # Thens
     #
 
-    # shape should be n_heads x n x d_head
-    assert y.shape == (n_heads, n, d_head)
+    # shape should be bs x n_heads x n x d_head
+    assert y.shape == (bs, n_heads, n, d_head)
 
     #
     # Whens
@@ -166,7 +168,8 @@ def test_attention_heads():
     assert (y == x).all()
 
 
-def test_forward():
+@pytest.mark.parametrize("input_shape", [(10, 3072), (2, 10, 3072)])
+def test_forward(input_shape: tuple):
     #
     # Givens
     #
@@ -181,16 +184,14 @@ def test_forward():
     # I created Attention for layers.0.attention
     attention = ll.attention.create(config, params, "layers.0.attention")
 
-    # sequence length
-    n = 10
-
     # I generated rope rotation matrices and masked attention bias
+    n = input_shape[-2]
     r_cos, r_sin = ll.attention.rope_frequencies(config, n)
     m = ll.attention.masked_attention_bias(n, config.dtype)
 
     # I generated sample embeddings
     key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    x = random.normal(subkey, input_shape)
 
     #
     # Whens

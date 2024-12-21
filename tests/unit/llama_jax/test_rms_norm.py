@@ -1,5 +1,8 @@
+from math import prod
+
 from jax import numpy as jnp
 from jax import random
+import pytest
 
 import llama_jax as ll
 from llama_jax.rms_norm import RMSNorm
@@ -29,26 +32,23 @@ def test_factory():
     assert norm.weight.shape == (config.d_model,)
 
 
-def test_rms_norm_shape():
-    """Verify normalizing factor is calculated separately for each sample."""
+@pytest.mark.parametrize("input_shape", [(10, 100), (2, 10, 100)])
+def test_rms_norm_shape(input_shape: tuple):
+    """Verify normalizing factor is calculated separately for each sample.
+
+    Args:
+        input_shape: (n, d_model) or (bs, n, d_model)
+    """
     #
     # Givens
     #
 
-    # n is 10
-    n = 10
-
-    # d_model is 100
-    d_model = 100
-
-    # I loaded config w/ epsilon of 0
+    # I created RMSNorm with weights of 1.0, epsilon of 0
     config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
+    norm = RMSNorm(weight=jnp.ones(input_shape[-1]))
 
-    # I created RMSNorm with weights of 1.0
-    norm = RMSNorm(weight=jnp.ones(d_model))
-
-    # x is an (n, d_model) array of ones
-    x = jnp.ones(n * d_model).reshape(n, d_model)
+    # x is array of ones
+    x = jnp.reshape(jnp.ones(prod(input_shape)), input_shape)
 
     #
     # Whens
@@ -61,30 +61,27 @@ def test_rms_norm_shape():
     # Thens
     #
 
-    # factor should have shape (n, 1)
-    assert factor.shape == (n, 1)
+    # factor should have shape (..., 1)
+    assert factor.shape == input_shape[:-1] + (1,)
 
 
-def test_rms_norm_identity():
-    """Verify normalizing an array of ones doesn't change the array."""
+@pytest.mark.parametrize("input_shape", [(10, 100), (2, 10, 100)])
+def test_rms_norm_identity(input_shape: tuple):
+    """Verify normalizing an array of ones doesn't change the array.
+
+    Args:
+        input_shape: (n, d_model) or (bs, n, d_model)
+    """
     #
     # Givens
     #
 
-    # n is 10
-    n = 10
-
-    # d_model is 100
-    d_model = 100
-
-    # I loaded config w/ epsilon of 0
+    # I created RMSNorm with weights of 1.0, epsilon of 0
     config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
+    norm = RMSNorm(weight=jnp.ones(input_shape[-1]))
 
-    # I created RMSNorm with weights of 1.0
-    norm = RMSNorm(weight=jnp.ones(d_model))
-
-    # x is an (n, d_model) array of ones
-    x = jnp.ones(n * d_model).reshape(n, d_model)
+    # x is array of ones
+    x = jnp.reshape(jnp.ones(prod(input_shape)), input_shape)
 
     #
     # Whens
@@ -101,8 +98,13 @@ def test_rms_norm_identity():
     assert (y == x).all()
 
 
-def test_rms_norm_scaling():
-    """Verify RMS normalization is invariant to scaling."""
+@pytest.mark.parametrize("input_shape", [(10, 100), (2, 10, 100)])
+def test_rms_norm_scaling(input_shape: tuple):
+    """Verify RMS normalization is invariant to scaling.
+
+    Args:
+        input_shape: (n, d_model) or (bs, n, d_model)
+    """
     #
     # Givens
     #
@@ -110,21 +112,13 @@ def test_rms_norm_scaling():
     # rng key
     key = random.key(42)
 
-    # n is 10
-    n = 10
-
-    # d_model is 100
-    d_model = 100
-
-    # I loaded config w/ epsilon of 0
+    # I created RMSNorm with weights of 1.0, epsilon of 0
     config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
-
-    # I created RMSNorm with weights of 1.0
-    norm = RMSNorm(weight=jnp.ones(d_model))
+    norm = RMSNorm(weight=jnp.ones(input_shape[-1]))
 
     # x is normally distributed w/ mean of 100 and std of 10
     key, subkey = random.split(key)
-    x = 10 * random.normal(subkey, (n, d_model)) + 100
+    x = 10 * random.normal(subkey, input_shape) + 100
 
     #
     # Whens
