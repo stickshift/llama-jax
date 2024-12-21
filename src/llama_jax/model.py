@@ -69,6 +69,10 @@ def forward(
     token_ids: ArrayLike,
 ) -> ModelOutput:
     """Transform token ids into next token logits."""
+
+    # Sanity check
+    assert token_ids.ndim == 2
+
     # Sequence length
     n = token_ids.shape[-1]
 

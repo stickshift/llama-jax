@@ -323,9 +323,12 @@ def _generate(
         token_ids = tokenizer.encode(prompt)
         logger.debug(f"Split prompt into {len(token_ids)} token ids")
 
+        # Stack token ids into batch size of 1
+        token_ids = jnp.reshape(token_ids, (1,) + token_ids.shape)
+
         # Transform token ids into next token logits
         output = ll.model.forward(config, model, token_ids)
-        logits = output.logits
+        logits = output.logits[0]
 
         # Extract logits for MMLU options
         mmlu_logits = jnp.array([logits[mmlu_token_ids[option]] for option in OPTIONS])

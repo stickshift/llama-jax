@@ -142,6 +142,10 @@ def forward(
     x: ArrayLike,
 ) -> Array:
     """Transform x using grouped query attention (GQA)."""
+
+    # Sanity check
+    assert x.ndim == 3
+
     # Save residuals
     residual = x
 

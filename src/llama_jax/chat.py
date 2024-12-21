@@ -101,6 +101,9 @@ def _generate(
         # Initialize x with current token ids
         x = jnp.array(token_ids)
 
+        # Stack token ids into batch size of 1
+        x = jnp.reshape(x, (1,) + x.shape)
+
         # Transform token ids into next token logits
         output = ll.model.forward(config, model, x)
 
@@ -121,7 +124,7 @@ def _generate(
         content += tokenizer.decode(token_id)
 
         # Append to end of sequence
-        token_ids.append(token_id)
+        token_ids.append(token_id[0])
 
     message = Message(role="assistant", content=content)
 

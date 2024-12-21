@@ -45,6 +45,10 @@ def forward(
     x: ArrayLike,
 ) -> Array:
     """Transform x using attention and feedforward network."""
+
+    # Sanity check
+    assert x.ndim == 3
+
     # Attention
     x = ll.attention.forward(config, state.attention, rope, mask, x)
 
