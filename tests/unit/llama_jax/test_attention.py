@@ -61,34 +61,30 @@ def test_masked_attention_bias():
                 assert m[i, j] == 0
 
 
-def test_attention_heads():
+def test_attention_heads(bs: int, n: int):
     #
     # Givens
     #
 
-    # Dimensions
-    bs = 2
-    n = 10
-    d_model = 128
-    d_head = 32
-    n_heads = d_model // d_head
+    # I loaded config for 3.2 3B checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B")
 
     # I generated sample embeddings
-    x = jnp.arange(bs * n * d_model).reshape(bs, n, d_model)
+    x = jnp.arange(bs * n * config.d_model).reshape(bs, n, config.d_model)
 
     #
     # Whens
     #
 
     # I split attention heads
-    y = ll.attention.split_heads(x, n_heads)
+    y = ll.attention.split_heads(x, config.n_heads)
 
     #
     # Thens
     #
 
     # shape should be bs x n_heads x n x d_head
-    assert y.shape == (bs, n_heads, n, d_head)
+    assert y.shape == (bs, config.n_heads, n, config.d_head)
 
     #
     # Whens

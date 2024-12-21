@@ -8,7 +8,7 @@ from jax.nn import softmax
 from jax.typing import ArrayLike, DTypeLike
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, ModelParameters
+from llama_jax.checkpoint import ModelConfig, ModelParameters, HEAD_AXIS, TOKEN_AXIS, MODEL_AXIS
 from llama_jax.rms_norm import RMSNorm
 from llama_jax.rope import Rope
 
@@ -18,13 +18,6 @@ __all__ = [
     "forward",
 ]
 
-# ------------------------------------------------------------------------------
-# Constants
-# ------------------------------------------------------------------------------
-
-_HEAD_AXIS = -3
-_TOKEN_AXIS = -2
-_MODEL_AXIS = -1
 
 # ------------------------------------------------------------------------------
 # Attention
@@ -83,26 +76,26 @@ def split_heads(x: ArrayLike, n_heads: int) -> Array:
     """Split attention heads.
 
     Args:
-        x (Array): Input tensor w/ shape (..., n, d_model)
+        x (Array): Input tensor w/ shape (bs, n, d_model)
         n_heads (int): Number of attention heads
 
     Returns:
-        Array: x reshaped to (..., n_heads, n, d_head)
+        Array: x reshaped to (bs, n_heads, n, d_head)
     """
     # Sanity check
-    assert len(x.shape) >= 2
+    assert len(x.shape) == 3
 
     # Calculate dimensions from static shape
-    d_head = x.shape[_MODEL_AXIS] // n_heads
+    d_head = x.shape[MODEL_AXIS] // n_heads
 
     # Split last dimension into n_heads groups:
-    #   e.g (..., n, d_model) -> (..., n, n_heads, d_head)
+    #   e.g (bs, n, d_model) -> (bs, n, n_heads, d_head)
     shape = x.shape[:-1] + (n_heads, d_head)
     y = jnp.reshape(x, shape)
 
     # Swap token and head dimensions
-    #   e.g (..., n, n_heads, d_head) -> (..., n_heads, n, d_head)
-    y = jnp.swapaxes(y, _HEAD_AXIS, _TOKEN_AXIS)
+    #   e.g (bs, n, n_heads, d_head) -> (bs, n_heads, n, d_head)
+    y = jnp.swapaxes(y, HEAD_AXIS, TOKEN_AXIS)
 
     return y
 
@@ -111,23 +104,23 @@ def combine_heads(x: Array) -> Array:
     """Combine attention heads.
 
     Args:
-        x (Array): Input tensor w/ shape (..., n_heads, n, d_head)
+        x (Array): Input tensor w/ shape (bs, n_heads, n, d_head)
 
     Returns:
-        Array: x reshaped to (..., n, n_heads * d_head)
+        Array: x reshaped to (bs, n, n_heads * d_head)
     """
     # Sanity check
-    assert len(x.shape) >= 3
+    assert len(x.shape) == 4
 
     # Calculate dimensions from static shape
-    n_heads, d_head = x.shape[_HEAD_AXIS], x.shape[_MODEL_AXIS]
+    n_heads, d_head = x.shape[HEAD_AXIS], x.shape[MODEL_AXIS]
 
     # Swap token and head dimensions
-    #   e.g (..., n_heads, n, d_head) -> (..., n, n_heads, d_head)
-    y = jnp.swapaxes(x, _HEAD_AXIS, _TOKEN_AXIS)
+    #   e.g (bs, n_heads, n, d_head) -> (bs, n, n_heads, d_head)
+    y = jnp.swapaxes(x, HEAD_AXIS, TOKEN_AXIS)
 
     # Merge last 2 dimensions
-    #   e.g (..., n, n_heads, d_head) -> (..., n, n_heads * d_head)
+    #   e.g (bs, n, n_heads, d_head) -> (bs, n, n_heads * d_head)
     shape = y.shape[:-2] + (n_heads * d_head,)
     y = jnp.reshape(y, shape)
 
@@ -165,8 +158,8 @@ def forward(
 
     # Expand key/value groups along n_heads dimension
     reps = config.n_heads // config.n_kv_heads
-    k = k.repeat(reps, axis=_HEAD_AXIS)
-    v = v.repeat(reps, axis=_HEAD_AXIS)
+    k = k.repeat(reps, axis=HEAD_AXIS)
+    v = v.repeat(reps, axis=HEAD_AXIS)
 
     # Sanity check
     assert q.shape == k.shape == v.shape
