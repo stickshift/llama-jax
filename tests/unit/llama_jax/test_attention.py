@@ -4,6 +4,7 @@ from jax import random
 import pytest
 
 import llama_jax as ll
+from llama_jax.kv_cache import LayerKVCache
 
 
 def test_factory():
@@ -127,12 +128,15 @@ def test_forward(bs: int, n: int):
     key, subkey = random.split(key)
     x = random.normal(subkey, (bs, n, config.d_model))
 
+    # I created a key/value cache
+    kv_cache = LayerKVCache()
+
     #
     # Whens
     #
 
     # I transform x w/ attention
-    y = ll.attention.forward(config, attention, rope, mask, x)
+    y, kv_cache = ll.attention.forward(config, attention, rope, mask, kv_cache, x)
 
     #
     # Thens

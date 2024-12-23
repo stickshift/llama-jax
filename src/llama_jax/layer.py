@@ -9,6 +9,7 @@ import llama_jax as ll
 from llama_jax.attention import Attention
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
+from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rope import Rope
 
 __all__ = [
@@ -42,17 +43,18 @@ def forward(
     state: Layer,
     rope: Rope,
     mask: ArrayLike,
+    kv_cache: LayerKVCache,
     x: ArrayLike,
-) -> Array:
+) -> tuple[Array, LayerKVCache]:
     """Transform x using attention and feedforward network."""
 
     # Sanity check
     assert x.ndim == 3
 
     # Attention
-    x = ll.attention.forward(config, state.attention, rope, mask, x)
+    x, kv_cache = ll.attention.forward(config, state.attention, rope, mask, kv_cache, x)
 
     # FFN
     x = ll.ffn.forward(config, state.ffn, x)
 
-    return x
+    return x, kv_cache

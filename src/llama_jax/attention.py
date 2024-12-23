@@ -9,13 +9,17 @@ from jax.typing import ArrayLike, DTypeLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters, HEAD_AXIS, TOKEN_AXIS, MODEL_AXIS
+from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rms_norm import RMSNorm
 from llama_jax.rope import Rope
 
 __all__ = [
     "Attention",
+    "attention_mask",
     "create",
     "forward",
+    "split_heads",
+    "combine_heads",
 ]
 
 
@@ -132,8 +136,9 @@ def forward(
     state: Attention,
     rope: Rope,
     mask: ArrayLike,
+    kv_cache: LayerKVCache,
     x: ArrayLike,
-) -> Array:
+) -> tuple[Array, LayerKVCache]:
     """Transform x using grouped query attention (GQA)."""
 
     # Sanity check
@@ -151,18 +156,20 @@ def forward(
     v = x @ state.values
 
     # Split attention heads
-    #   e.g. (..., n, d_model) -> (..., n_heads, n, d_head)
+    #   e.g. (bs, n, d_model) -> (bs, n_heads, n, d_head)
     q = split_heads(q, config.n_heads)
     k = split_heads(k, config.n_kv_heads)
     v = split_heads(v, config.n_kv_heads)
+
+    # Update key/value cache
+    k = ll.kv_cache.apply(kv_cache.keys, k)
+    v = ll.kv_cache.apply(kv_cache.values, v)
+    kv_cache = LayerKVCache(keys=k, values=v)
 
     # Expand key/value groups along n_heads dimension
     reps = config.n_heads // config.n_kv_heads
     k = k.repeat(reps, axis=HEAD_AXIS)
     v = v.repeat(reps, axis=HEAD_AXIS)
-
-    # Sanity check
-    assert q.shape == k.shape == v.shape
 
     # Encode positions by rotating queries and keys
     q = ll.rope.rotate(rope, q)
@@ -174,6 +181,7 @@ def forward(
     x = softmax(scores, axis=-1) @ v
 
     # Combine attention heads
+    #   e.g. (bs, n_heads, n, d_head) -> (bs, n, d_model)
     x = combine_heads(x)
 
     # Project outputs back to model space
@@ -182,4 +190,4 @@ def forward(
     # Merge outputs with residuals
     x = residual + x
 
-    return x
+    return x, kv_cache

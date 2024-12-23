@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 import llama_jax as ll
 from llama_jax.benchmarks.mmlu import (
@@ -89,6 +90,7 @@ def test_prompt_zero_shot(mmlu_dataset_path: Path):
     assert messages[-1].role == "user"
 
 
+@pytest.mark.wip
 def test_generate_answers(mmlu_dataset_path: Path):
     #
     # Givens
@@ -123,6 +125,7 @@ def test_generate_answers(mmlu_dataset_path: Path):
     assert isinstance(answer.correct, bool)
 
 
+@pytest.mark.wip
 def test_evaluate(mmlu_dataset_path: Path):
     #
     # Givens

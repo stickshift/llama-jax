@@ -4,6 +4,7 @@ import pytest
 import llama_jax as ll
 from llama_jax.attention import Attention
 from llama_jax.ffn import FFN
+from llama_jax.kv_cache import LayerKVCache
 
 
 def test_factory():
@@ -50,6 +51,9 @@ def test_forward(bs: int, n: int):
     rope = ll.rope.create(config, n)
     mask = ll.attention.attention_mask(n, config.dtype)
 
+    # I created a key/value cache
+    kv_cache = LayerKVCache()
+
     # I generated sample embeddings
     key, subkey = random.split(key)
     x = random.normal(subkey, (bs, n, config.d_model))
@@ -59,7 +63,7 @@ def test_forward(bs: int, n: int):
     #
 
     # I transform x w/ layer
-    y = ll.layer.forward(config, layer, rope, mask, x)
+    y, kv_cache = ll.layer.forward(config, layer, rope, mask, kv_cache, x)
 
     #
     # Thens
@@ -67,3 +71,7 @@ def test_forward(bs: int, n: int):
 
     # y.shape didn't change
     assert y.shape == x.shape
+
+    # kv_cache should be populated
+    assert kv_cache.keys is not None
+    assert kv_cache.values is not None
