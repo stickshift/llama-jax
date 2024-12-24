@@ -68,7 +68,6 @@ def forward(
     token_ids: ArrayLike,
 ) -> tuple[Array, KVCache]:
     """Transform token ids into next token logits."""
-
     # Sanity check
     assert token_ids.ndim == 2
 
@@ -158,14 +157,13 @@ def sample_tokens(
     selected = select_index(probs, key=subkeys)
 
     # Convert selected index to original logits
-    selected = jnp.reshape(selected, selected.shape + (1,))
+    selected = jnp.reshape(selected, (*selected.shape, 1))
     next_token_id = jnp.take_along_axis(indices, selected, axis=value_axis)
 
     return next_token_id
 
 
 def sample_top_k(probs: ArrayLike, top_k: int | None = None) -> Array:
-
     # Defaults
     top_k = default_arg(top_k, 50)
 
@@ -179,7 +177,6 @@ def sample_top_k(probs: ArrayLike, top_k: int | None = None) -> Array:
 
 
 def sample_top_p(probs: ArrayLike, top_p: float | None = None) -> Array:
-
     # Defaults
     top_p = default_arg(top_p, 0.9)
 
@@ -206,7 +203,6 @@ def sample_top_p(probs: ArrayLike, top_p: float | None = None) -> Array:
 @jax.vmap
 def select_index(probs: ArrayLike, key: ArrayLike) -> Array:
     """Randomly choose index weighted by probability."""
-
     index = random.choice(key, jnp.arange(probs.shape[0]), p=probs)
 
     return index

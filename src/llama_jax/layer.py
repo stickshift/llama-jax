@@ -47,7 +47,6 @@ def forward(
     x: ArrayLike,
 ) -> tuple[Array, LayerKVCache]:
     """Transform x using attention and feedforward network."""
-
     # Sanity check
     assert x.ndim == 3
 

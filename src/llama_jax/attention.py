@@ -8,7 +8,7 @@ from jax.nn import softmax
 from jax.typing import ArrayLike, DTypeLike
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, ModelParameters, HEAD_AXIS, TOKEN_AXIS, MODEL_AXIS
+from llama_jax.checkpoint import HEAD_AXIS, MODEL_AXIS, TOKEN_AXIS, ModelConfig, ModelParameters
 from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rms_norm import RMSNorm
 from llama_jax.rope import Rope
@@ -16,10 +16,10 @@ from llama_jax.rope import Rope
 __all__ = [
     "Attention",
     "attention_mask",
+    "combine_heads",
     "create",
     "forward",
     "split_heads",
-    "combine_heads",
 ]
 
 
@@ -140,7 +140,6 @@ def forward(
     x: ArrayLike,
 ) -> tuple[Array, LayerKVCache]:
     """Transform x using grouped query attention (GQA)."""
-
     # Sanity check
     assert x.ndim == 3
 

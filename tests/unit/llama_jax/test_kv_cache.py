@@ -1,11 +1,10 @@
-from jax import numpy as jnp, random
+from jax import random
 
 import llama_jax as ll
 from llama_jax.kv_cache import LayerKVCache
 
 
 def test_update(bs: int, n: int):
-
     #
     # Givens
     #
@@ -21,8 +20,8 @@ def test_update(bs: int, n: int):
     kv_cache = ll.kv_cache.create(config)
 
     # I loaded parameters for layer 0
-    keys = params[f"layers.0.attention.wk.weight"].transpose()
-    values = params[f"layers.0.attention.wv.weight"].transpose()
+    keys = params["layers.0.attention.wk.weight"].transpose()
+    values = params["layers.0.attention.wv.weight"].transpose()
     layer_kv_cache = kv_cache[0]
 
     #

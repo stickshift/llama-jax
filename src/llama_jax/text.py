@@ -79,7 +79,7 @@ def _generate(
         x = jnp.array(token_ids)
 
         # Stack token ids into batch size of 1
-        x = jnp.reshape(x, (1,) + x.shape)
+        x = jnp.reshape(x, (1, *x.shape))
 
         # Transform token ids into next token logits
         output = ll.model.forward(config, model, x)

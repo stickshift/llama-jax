@@ -1,5 +1,4 @@
 from jax import random
-import pytest
 
 import llama_jax as ll
 

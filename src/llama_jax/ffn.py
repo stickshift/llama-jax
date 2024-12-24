@@ -48,7 +48,6 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> FFN:
 
 def forward(config: ModelConfig, state: FFN, x: ArrayLike) -> Array:
     """Transform x using feedforward network (FFN)."""
-
     # Sanity check
     assert x.ndim == 3
 

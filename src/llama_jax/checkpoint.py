@@ -14,15 +14,15 @@ from jax.typing import DTypeLike
 from .tokenizer import Tokenizer
 
 __all__ = [
+    "HEAD_AXIS",
+    "MODEL_AXIS",
+    "TOKEN_AXIS",
     "ModelConfig",
     "ModelParameters",
     "TrainingLevel",
     "load_config",
     "load_parameters",
     "load_tokenizer",
-    "HEAD_AXIS",
-    "TOKEN_AXIS",
-    "MODEL_AXIS",
 ]
 
 # ------------------------------------------------------------------------------

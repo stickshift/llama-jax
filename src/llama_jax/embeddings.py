@@ -27,7 +27,6 @@ def create(config: ModelConfig, params: ModelParameters) -> Embeddings:
 
 def forward(config: ModelConfig, state: Embeddings, token_ids: ArrayLike) -> Array:
     """Map token ids to embeddings."""
-
     # Sanity check
     assert token_ids.ndim == 2
 

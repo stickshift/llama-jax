@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from typing import NamedTuple
 
 from jax import Array
@@ -8,11 +7,11 @@ from jax.typing import ArrayLike
 from llama_jax.checkpoint import ModelConfig
 
 __all__ = [
-    "LayerKVCache",
     "KVCache",
+    "LayerKVCache",
     "MutableKVCache",
-    "create",
     "apply",
+    "create",
 ]
 
 
@@ -33,12 +32,11 @@ MutableKVCache = list[LayerKVCache]
 
 def create(config: ModelConfig) -> KVCache:
     """Create key-value cache for attention layers."""
-
     return tuple(LayerKVCache() for _ in range(config.n_layers))
 
 
 def apply(cached_values: ArrayLike | None, values: ArrayLike) -> Array:
-
+    """Add values to cache and return entire cache."""
     if cached_values is None:
         return values
 

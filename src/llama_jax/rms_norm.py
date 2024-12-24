@@ -31,7 +31,6 @@ def forward(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
 
     See https://doi.org/10.48550/arXiv.1910.07467
     """
-
     # Sanity check
     assert x.ndim == 3
 

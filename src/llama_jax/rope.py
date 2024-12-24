@@ -11,8 +11,8 @@ from llama_jax.checkpoint import ModelConfig
 __all__ = [
     "Rope",
     "create",
-    "swap",
     "rotate",
+    "swap",
 ]
 
 

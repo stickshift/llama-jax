@@ -324,7 +324,7 @@ def _generate(
         logger.debug(f"Split prompt into {len(token_ids)} token ids")
 
         # Stack token ids into batch size of 1
-        token_ids = jnp.reshape(token_ids, (1,) + token_ids.shape)
+        token_ids = jnp.reshape(token_ids, (1, *token_ids.shape))
 
         # Transform token ids into next token logits
         output = ll.model.forward(config, model, token_ids)

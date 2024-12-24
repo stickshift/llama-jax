@@ -1,8 +1,5 @@
-from math import prod
-
 from jax import numpy as jnp
 from jax import random
-import pytest
 
 import llama_jax as ll
 from llama_jax.rms_norm import RMSNorm

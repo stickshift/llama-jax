@@ -1,7 +1,4 @@
-import jax
 from jax import numpy as jnp
-from jax import random
-import pytest
 
 import llama_jax as ll
 
@@ -64,4 +61,3 @@ def test_swap():
             assert y[i, j, 1] == x[i, j, 0]
             assert y[i, j, 2] == -x[i, j, 3]
             assert y[i, j, 3] == x[i, j, 2]
-

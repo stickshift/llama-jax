@@ -1,7 +1,6 @@
 from jax import numpy as jnp
 from jax import random
 from jax.nn import softmax
-import pytest
 
 import llama_jax as ll
 from llama_jax.embeddings import Embeddings
@@ -121,16 +120,10 @@ def test_sample_top_p(bs: int):
     # Givens
     #
 
-    # rng key
-    key = random.key(42)
-
     # I generate 2 batches of sample probs:
     #   0.1, 0.2, 0.3, 0.4
     #   0.05, 0.1, 0.15, 0.7
-    probs = jnp.stack([
-        jnp.array([0.1, 0.2, 0.3, 0.4]),
-        jnp.array([0.05, 0.1, 0.15, 0.7])
-    ])
+    probs = jnp.stack([jnp.array([0.1, 0.2, 0.3, 0.4]), jnp.array([0.05, 0.1, 0.15, 0.7])])
 
     #
     # Whens
@@ -148,10 +141,7 @@ def test_sample_top_p(bs: int):
     #   0.05, 0.1, 0.0, 0.0
     assert jnp.allclose(
         probs,
-        jnp.stack([
-            jnp.array([0.1, 0.0, 0.0, 0.0]),
-            jnp.array([0.05, 0.1, 0.0, 0.0])
-        ]),
+        jnp.stack([jnp.array([0.1, 0.0, 0.0, 0.0]), jnp.array([0.05, 0.1, 0.0, 0.0])]),
         atol=0.01,
     )
 
@@ -171,7 +161,6 @@ def test_sample_tokens():
     logits = jnp.stack([
         # First one favors token 0
         jnp.concat([jnp.array([1]), jnp.zeros(config.vocab_size - 1)]),
-
         # Second one favors token 1
         jnp.concat([jnp.array([0, 1]), jnp.zeros(config.vocab_size - 2)]),
     ])
@@ -256,5 +245,5 @@ def test_generate(n: int):
 
     # kv_cache should be populated
     for i in range(config.n_layers):
-        assert kv_cache[i].keys.shape == (1, config.n_kv_heads, n-1, config.d_head)
-        assert kv_cache[i].values.shape == (1, config.n_kv_heads, n-1, config.d_head)
+        assert kv_cache[i].keys.shape == (1, config.n_kv_heads, n - 1, config.d_head)
+        assert kv_cache[i].values.shape == (1, config.n_kv_heads, n - 1, config.d_head)

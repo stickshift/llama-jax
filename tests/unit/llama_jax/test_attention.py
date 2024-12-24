@@ -1,7 +1,6 @@
 import jax
 from jax import numpy as jnp
 from jax import random
-import pytest
 
 import llama_jax as ll
 from llama_jax.kv_cache import LayerKVCache
