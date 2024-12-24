@@ -3,22 +3,19 @@ from jax import numpy as jnp
 import llama_jax as ll
 
 
-def test_factory():
+def test_factory(n: int):
     #
     # Givens
     #
 
-    # I loaded config and parameters for 3.2 3B checkpoint
+    # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # sequence length
-    n = 10
 
     #
     # Whens
     #
 
-    # I create Rope
+    # I initialize RoPE rotation matrices
     rope = ll.rope.create(config, n)
 
     #
@@ -61,3 +58,74 @@ def test_swap():
             assert y[i, j, 1] == x[i, j, 0]
             assert y[i, j, 2] == -x[i, j, 3]
             assert y[i, j, 3] == x[i, j, 2]
+
+
+def test_rotate():
+    """Verify RoPE rotation.
+
+    RoPE rotates each pair of values in an embedding by m*theta_i, where m is the embedding's position in the sequence
+    and theta_i is based on the ith pair: theta_i = base ** (-2 * i / d).
+
+    To make the math easy, we set i=1, d=4, and base=4/pi**2 which generates theta_1 = pi/2. From here, we can predict
+    the rotated values by starting with coordinates (1, 0) and rotating the point in steps of pi/2.
+    """
+
+    #
+    # Givens
+    #
+
+    # I initialized rope matrices for Theta = 4/pi^2, d = 4, and n = 5
+    rope_theta = 4 / jnp.pi**2
+    d_head = 4
+    n = 5
+
+    config = ll.checkpoint.load_config(
+        "Llama3.2-3B",
+        rope_theta=rope_theta,
+        d_head=d_head,
+        dtype=jnp.float32,
+    )
+    rope = ll.rope.create(config, n)
+
+    # I generated a sequence of 5 embeddings where the second pair of values (i=1) is (1, 0).
+    x = jnp.array([
+        [
+            [0, 0, 1, 0],
+            [0, 0, 1, 0],
+            [0, 0, 1, 0],
+            [0, 0, 1, 0],
+            [0, 0, 1, 0],
+        ],
+    ])
+
+    #
+    # Whens
+    #
+
+    # I rotate x
+    x = ll.rope.rotate(rope, x)
+
+    # I drop the batch dimension and round to 2 decimal places
+    x = jnp.round(x[0], decimals=2)
+
+    #
+    # Thens
+    #
+
+    # Embeddings should be rotated in increments of pi/2
+
+    # 0
+    assert (x[0, 2], x[0, 3]) == (1, 0)
+
+    # pi/2
+    assert (x[1, 2], x[1, 3]) == (0, 1)
+
+    # pi
+    assert (x[2, 2], x[2, 3]) == (-1, 0)
+
+    # 3pi/2
+    assert (x[3, 2], x[3, 3]) == (0, -1)
+
+    # 2pi
+    assert (x[4, 2], x[4, 3]) == (1, 0)
+

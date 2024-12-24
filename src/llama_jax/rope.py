@@ -74,5 +74,9 @@ def swap(x: ArrayLike) -> Array:
 
 
 def rotate(rope: Rope, x: ArrayLike) -> Array:
-    """Rotate embeddings using RoPE transform."""
+    """Rotate embeddings using RoPE transform.
+
+    Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`
+    is the position of the pair in the embedding vector.
+    """
     return (x * rope.cos) + (swap(x) * rope.sin)
