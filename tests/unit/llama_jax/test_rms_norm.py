@@ -54,8 +54,8 @@ def test_rms_norm_shape(bs: int, n: int):
     # Thens
     #
 
-    # factor should have shape (bs, n, 1)
-    assert factor.shape == (bs, n, 1)
+    # factor should have shape (bs, n, d_model)
+    assert factor.shape == (bs, n, config.d_model)
 
 
 def test_rms_norm_identity(bs: int, n: int):

@@ -29,10 +29,9 @@ def create(config: ModelConfig, n: int) -> Rope:
     # Hyperparameters
     base = config.rope_theta
     d = config.d_head
-    dtype = config.dtype
 
     # Calculate thetas
-    i = jnp.arange(d // 2, dtype=dtype)
+    i = jnp.arange(d // 2)
     thetas = base ** (-2 * i / d)
 
     # Duplicate each theta, e.g. [theta_0, theta_1] -> [theta_0, theta_0, theta_1, theta_1]
@@ -79,4 +78,16 @@ def rotate(rope: Rope, x: ArrayLike) -> Array:
     Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`
     is the position of the pair in the embedding vector.
     """
-    return (x * rope.cos) + (swap(x) * rope.sin)
+    dtype = x.dtype
+
+    # Convert x to float32
+    x = x.astype(jnp.float32)
+
+    # Rotate
+    x = (x * rope.cos) + (swap(x) * rope.sin)
+
+    # Convert back to original dtype
+    x = x.astype(dtype)
+
+    return x
+

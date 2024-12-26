@@ -1,3 +1,4 @@
+import jax.dtypes
 from jax import numpy as jnp
 
 import llama_jax as ll
@@ -25,6 +26,10 @@ def test_factory(n: int):
     # rotation matrices should have shape (n, d_head)
     assert rope.cos.shape == (n, config.d_head)
     assert rope.sin.shape == (n, config.d_head)
+
+    # rotation matrices should always be floats
+    assert rope.cos.dtype == jnp.float32
+    assert rope.sin.dtype == jnp.float32
 
 
 def test_swap():
@@ -83,7 +88,6 @@ def test_rotate():
         "Llama3.2-3B",
         rope_theta=rope_theta,
         d_head=d_head,
-        dtype=jnp.float32,
     )
     rope = ll.rope.create(config, n)
 
@@ -96,7 +100,7 @@ def test_rotate():
             [0, 0, 1, 0],
             [0, 0, 1, 0],
         ],
-    ])
+    ], dtype=jax.dtypes.bfloat16)
 
     #
     # Whens
