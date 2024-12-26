@@ -29,6 +29,7 @@ def create(config: ModelConfig, n: int) -> Rope:
     # Hyperparameters
     base = config.rope_theta
     d = config.d_head
+    dtype = config.dtype
 
     # Calculate thetas
     i = jnp.arange(d // 2)
@@ -43,6 +44,9 @@ def create(config: ModelConfig, n: int) -> Rope:
     # Apply cos, sin
     r_cos = jnp.cos(theta_stack)
     r_sin = jnp.sin(theta_stack)
+
+    # Convert to dtype after all the upfront math is complete. 
+    r_cos, r_sin = r_cos.astype(dtype), r_sin.astype(dtype)
 
     # Sanity check
     assert r_cos.shape[0] == n and r_cos.shape[1] == d  # noqa: PT018
@@ -78,16 +82,7 @@ def rotate(rope: Rope, x: ArrayLike) -> Array:
     Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`
     is the position of the pair in the embedding vector.
     """
-    dtype = x.dtype
-
-    # Convert x to float32
-    x = x.astype(jnp.float32)
 
     # Rotate
-    x = (x * rope.cos) + (swap(x) * rope.sin)
-
-    # Convert back to original dtype
-    x = x.astype(dtype)
-
-    return x
+    return (x * rope.cos) + (swap(x) * rope.sin)
 

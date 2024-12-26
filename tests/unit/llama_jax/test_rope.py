@@ -27,9 +27,9 @@ def test_factory(n: int):
     assert rope.cos.shape == (n, config.d_head)
     assert rope.sin.shape == (n, config.d_head)
 
-    # rotation matrices should always be floats
-    assert rope.cos.dtype == jnp.float32
-    assert rope.sin.dtype == jnp.float32
+    # rotation matrices should always be bfloat16
+    assert rope.cos.dtype == jax.dtypes.bfloat16
+    assert rope.sin.dtype == jax.dtypes.bfloat16
 
 
 def test_swap():

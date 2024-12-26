@@ -24,15 +24,7 @@ class RMSNorm(NamedTuple):
 def create(config: ModelConfig, params: ModelParameters, path: str) -> RMSNorm:
     """Load Llama3 RMSNorm."""
 
-    weight = params[f"{path}.weight"]
-
-    # Convert weights to float32.
-    #   ASY - We're recreating behavior from llama-models I believe to be a bug. Even though the rms weights are saved
-    #   in bfloat16, they're always initialized as float32.
-    #
-    weight = weight.astype(jnp.float32)
-
-    return RMSNorm(weight=weight)
+    return RMSNorm(weight=params[f"{path}.weight"])
 
 
 def forward(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
