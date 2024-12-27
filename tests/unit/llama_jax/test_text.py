@@ -1,11 +1,9 @@
 from jax import Array, random
-import pytest
 
 import llama_jax as ll
 from llama_jax.tokenizer import Tokenizer
 
 
-@pytest.mark.wip
 def test_323b(key: Array, tokenizer: Tokenizer):
     #
     # Givens
@@ -26,11 +24,11 @@ def test_323b(key: Array, tokenizer: Tokenizer):
     #
 
     # I generate next token
-    token = next(generator(prompt))
+    tokens = next(generator(prompts))
 
     #
     # Thens
     #
 
     # token should be "delta"
-    assert token.strip() == "delta"
+    assert tokens[0].strip() == "delta"

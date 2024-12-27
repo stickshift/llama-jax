@@ -1,10 +1,10 @@
 """Text completions."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from functools import partial
 from typing import Callable
 
-from jax import numpy as jnp
+from jax import random
 from jax.typing import ArrayLike
 
 import llama_jax as ll
@@ -27,7 +27,7 @@ def generator(
     top_k: int | None = None,
     top_p: float | None = None,
     max_tokens: int | None = None,
-) -> Callable[[str], Iterator[str]]:
+) -> Callable[[Sequence[str]], Iterator[Sequence[str]]]:
     """Create a text generator."""
     # Defaults
     max_tokens = default_arg(max_tokens, 32)
@@ -37,8 +37,7 @@ def generator(
 
     # Initialize model if not provided
     if model is None:
-        params = ll.checkpoint.load_parameters(config)
-        model = ll.model.create(config, params)
+        model = ll.model.create(config, ll.checkpoint.load_parameters(config))
 
     return partial(
         _generate,
@@ -54,7 +53,7 @@ def generator(
 
 
 def _generate(
-    prompt: str,
+    prompts: Sequence[str],
     *,
     config: ModelConfig,
     tokenizer: Tokenizer,
@@ -64,40 +63,32 @@ def _generate(
     top_k: int | None,
     top_p: float | None,
     max_tokens: int,
-) -> Iterator[str]:
+) -> Iterator[Sequence[str]]:
     """Generate tokens given a prompt."""
-    # Split prompt into tokens
-    token_ids = tokenizer.encode(prompt)
+    # Initialize key/value cache
+    kv_cache = ll.kv_cache.create(config)
 
-    # Convert token ids into mutable list
-    token_ids = token_ids.tolist()
+    # Split prompts into tokens
+    token_ids = tokenizer.encode(prompts)
 
-    # Generate output until we get a stop token or we exceed max_tokens.
+    # Initialize x with entire sequence on first pass
+    x = token_ids
+
+    # I sample up to max tokens
     for _ in range(max_tokens):
-        # Initialize x with current token ids
-        x = jnp.array(token_ids)
+        # Transform tokens
+        logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
 
-        # Stack token ids into batch size of 1
-        x = jnp.reshape(x, (1, *x.shape))
+        # Sample next token
+        key, subkey = random.split(key)
+        next_token_id = ll.model.sample_tokens(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
 
-        # Transform token ids into next token logits
-        output = ll.model.forward(config, model, x)
-
-        # Sample tokens
-        token_id, key = ll.head.sample_token(
-            output.logits,
-            key=key,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-        )
-
-        # Check stopping criteria
-        if token_id in tokenizer.stop_tokens:
+        # Break on stop tokens
+        if all(v in tokenizer.stop_tokens for v in next_token_id.flatten()):
             break
 
-        # Yield token
-        yield tokenizer.decode(token_id)
+        # Yield next token
+        yield tokenizer.decode(next_token_id)
 
-        # Append to end of sequence
-        token_ids.append(token_id[0])
+        # Subsequent iterations process one token at a time
+        x = next_token_id

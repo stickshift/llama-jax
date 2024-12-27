@@ -99,7 +99,7 @@ def forward(
     return x, kv_cache
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def sample_tokens(
     logits: ArrayLike,
     *,
