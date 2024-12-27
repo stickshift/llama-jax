@@ -1,17 +1,15 @@
-from jax import random
+from jax import Array, random
 import pytest
 
 import llama_jax as ll
+from llama_jax.tokenizer import Tokenizer
 
 
 @pytest.mark.wip
-def test_323b():
+def test_323b(key: Array, tokenizer: Tokenizer):
     #
     # Givens
     #
-
-    # rng
-    key = random.key(42)
 
     # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
@@ -21,7 +19,7 @@ def test_323b():
     generator = ll.text.generator(config, key=subkey, temperature=0)
 
     # Greek prompt
-    prompt = "alpha beta gamma"
+    prompts = ["alpha beta gamma"]
 
     #
     # Whens

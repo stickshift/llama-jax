@@ -5,7 +5,6 @@ from functools import partial
 from typing import Callable
 
 from jax import numpy as jnp
-from jax import random
 from jax.typing import ArrayLike
 
 import llama_jax as ll
@@ -21,8 +20,9 @@ __all__ = [
 
 def generator(
     config: ModelConfig,
+    *,
+    key: ArrayLike,
     model: Model | None = None,
-    key: ArrayLike | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
@@ -30,7 +30,6 @@ def generator(
 ) -> Callable[[str], Iterator[str]]:
     """Create a text generator."""
     # Defaults
-    key = default_arg(key, default_factory=partial(random.key, 42))
     max_tokens = default_arg(max_tokens, 32)
 
     # Initialize tokenizer
@@ -44,9 +43,9 @@ def generator(
     return partial(
         _generate,
         config=config,
+        key=key,
         tokenizer=tokenizer,
         model=model,
-        key=key,
         temperature=temperature,
         top_k=top_k,
         top_p=top_p,
@@ -59,8 +58,8 @@ def _generate(
     *,
     config: ModelConfig,
     tokenizer: Tokenizer,
-    model: Model,
     key: ArrayLike,
+    model: Model,
     temperature: float | None,
     top_k: int | None,
     top_p: float | None,

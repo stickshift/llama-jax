@@ -146,4 +146,4 @@ def load_parameters(config: ModelConfig) -> ModelParameters:
 def load_tokenizer(config: ModelConfig) -> Tokenizer:
     """Load tokenizer from checkpoint."""
     # Load tiktoken model
-    return Tokenizer(str(config.checkpoint_path / "tokenizer.model"))
+    return Tokenizer(config.checkpoint_path / "tokenizer.model")
