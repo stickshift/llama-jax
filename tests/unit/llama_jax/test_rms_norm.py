@@ -1,19 +1,12 @@
+from jax import Array, random
 from jax import numpy as jnp
-from jax import random
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.rms_norm import RMSNorm
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -29,15 +22,14 @@ def test_factory():
     assert norm.weight.shape == (config.d_model,)
 
 
-def test_rms_norm_shape(bs: int, n: int):
+def test_rms_norm_shape(config: ModelConfig, bs: int, n: int):
     """Verify normalizing factor is calculated separately for each sample."""
 
     #
     # Givens
     #
 
-    # I created RMSNorm with weights of 1.0, epsilon of 0
-    config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
+    # I created RMSNorm
     norm = RMSNorm(weight=jnp.ones(config.d_model))
 
     # x is array of ones
@@ -86,18 +78,14 @@ def test_rms_norm_identity(bs: int, n: int):
     assert (y == x).all()
 
 
-def test_rms_norm_scaling(bs: int, n: int):
+def test_rms_norm_scaling(config: ModelConfig, bs: int, n: int, key: Array):
     """Verify RMS normalization is invariant to scaling."""
 
     #
     # Givens
     #
 
-    # rng key
-    key = random.key(42)
-
-    # I created RMSNorm with weights of 1.0, epsilon of 0
-    config = ll.checkpoint.load_config("Llama3.2-3B", rms_norm_eps=0.0)
+    # I created RMSNorm with weights of 1.0
     norm = RMSNorm(weight=jnp.ones(config.d_model))
 
     # x is normally distributed w/ mean of 100 and std of 10

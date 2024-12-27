@@ -1,20 +1,14 @@
-from jax import random
+from jax import Array
 
 import llama_jax as ll
 from llama_jax.attention import Attention
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
 from llama_jax.kv_cache import LayerKVCache
+from llama_jax.rope import Rope
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -31,31 +25,19 @@ def test_factory():
     assert isinstance(layer.ffn, FFN)
 
 
-def test_forward(bs: int, n: int):
+def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings: Array, rope: Rope, mask: Array):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
     # I created Layer for layers.0
     layer = ll.layer.create(config, params, "layers.0")
-
-    # I created rope and attention mask
-    rope = ll.rope.create(config, n)
-    mask = ll.attention.attention_mask(n, config.dtype)
 
     # I created a key/value cache
     kv_cache = LayerKVCache()
 
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (bs, n, config.d_model))
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens

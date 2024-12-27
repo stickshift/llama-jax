@@ -1,18 +1,12 @@
 from jax import Array
 
-import llama_jax as ll
+from llama_jax.tokenizer import Tokenizer
 
 
-def test_codec():
+def test_codec(tokenizer: Tokenizer):
     #
     # Givens
     #
-
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # I loaded tokenizer
-    tokenizer = ll.checkpoint.load_tokenizer(config)
 
     # A prompt
     prompt0 = "What is the capital of Massachusetts? Answer in one word."

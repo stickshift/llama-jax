@@ -1,22 +1,16 @@
+from jax import Array, random
 from jax import numpy as jnp
-from jax import random
 from jax.nn import softmax
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.embeddings import Embeddings
 from llama_jax.head import Head
 from llama_jax.layer import Layer
+from llama_jax.tokenizer import Tokenizer
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -40,27 +34,16 @@ def test_factory():
     assert isinstance(model.head, Head)
 
 
-def test_forward(bs: int, n: int):
+def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, token_ids: Array):
     #
     # Givens
     #
-
-    # rng key
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
 
     # I created a Model
     model = ll.model.create(config, params)
 
     # I created a key/value cache
     kv_cache = ll.kv_cache.create(config)
-
-    # I generated sample token_ids
-    key, subkey = random.split(key)
-    token_ids = random.uniform(subkey, (bs, n), maxval=config.vocab_size).astype(jnp.int32)
 
     #
     # Whens
@@ -82,16 +65,10 @@ def test_forward(bs: int, n: int):
         assert kv_cache[i].values.shape == (bs, config.n_kv_heads, n, config.d_head)
 
 
-def test_sample_top_k(bs: int):
+def test_sample_top_k(config: ModelConfig, bs: int, key: Array):
     #
     # Givens
     #
-
-    # rng key
-    key = random.key(42)
-
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
 
     # I generate random sample probs
     key, subkey = random.split(key)
@@ -115,7 +92,7 @@ def test_sample_top_k(bs: int):
     assert probs.shape == (bs, top_k)
 
 
-def test_sample_top_p(bs: int):
+def test_sample_top_p():
     #
     # Givens
     #
@@ -146,16 +123,10 @@ def test_sample_top_p(bs: int):
     )
 
 
-def test_sample_tokens():
+def test_sample_tokens(config: ModelConfig, key: Array):
     #
     # Givens
     #
-
-    # rng key
-    key = random.key(42)
-
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
 
     # I generated 2 batches of logits
     logits = jnp.stack([
@@ -187,17 +158,18 @@ def test_sample_tokens():
     assert next_token_ids[1][0] == 1
 
 
-def test_generate(n: int):
+def test_generate(
+    config: ModelConfig,
+    params: ModelParameters,
+    tokenizer: Tokenizer,
+    bs: int,
+    n: int,
+    token_ids: Array,
+    key: Array,
+):
     #
     # Givens
     #
-
-    # rng key
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
 
     # I created a Model
     model = ll.model.create(config, params)
@@ -205,13 +177,8 @@ def test_generate(n: int):
     # I created a key/value cache
     kv_cache = ll.kv_cache.create(config)
 
-    # I split greek prompt into tokens
-    prompt = "Paris is an amazing place"
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-    token_ids = tokenizer.encode(prompt)
-
-    # I stacked token_ids into a single batch
-    token_ids = jnp.stack([token_ids])
+    # Max tokens
+    max_tokens = 5
 
     #
     # Whens
@@ -220,8 +187,8 @@ def test_generate(n: int):
     # Initialize x with entire sequence on first pass
     x = token_ids
 
-    # I sample tokens
-    for _ in range(n - token_ids.shape[-1]):
+    # I sample up to max tokens
+    for _ in range(max_tokens):
         # Transform tokens
         logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
 
@@ -233,17 +200,18 @@ def test_generate(n: int):
         # Subsequent iterations process one token at a time
         x = next_token_id
 
-    # I unstack token_ids
-    token_ids = token_ids[0]
+        # Break on stop tokens
+        if all(v in tokenizer.stop_tokens for v in next_token_id.flatten()):
+            break
 
     #
     # Thens
     #
 
-    # there should be n tokens
-    assert len(token_ids) == n
+    # there should be n + max_tokens tokens
+    assert token_ids.shape[-1] == n + max_tokens
 
     # kv_cache should be populated
     for i in range(config.n_layers):
-        assert kv_cache[i].keys.shape == (1, config.n_kv_heads, n - 1, config.d_head)
-        assert kv_cache[i].values.shape == (1, config.n_kv_heads, n - 1, config.d_head)
+        assert kv_cache[i].keys.shape == (bs, config.n_kv_heads, token_ids.shape[-1] - 1, config.d_head)
+        assert kv_cache[i].values.shape == (bs, config.n_kv_heads, token_ids.shape[-1] - 1, config.d_head)

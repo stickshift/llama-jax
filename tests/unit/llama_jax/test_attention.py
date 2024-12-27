@@ -1,8 +1,9 @@
 import jax
+from jax import Array
 from jax import numpy as jnp
-from jax import random
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.kv_cache import LayerKVCache
 
 
@@ -33,13 +34,10 @@ def test_factory():
     assert attention.output.shape == (config.d_model, config.d_model)
 
 
-def test_masked_attention_bias():
+def test_masked_attention_bias(n: int):
     #
     # Givens
     #
-
-    # Dimensions
-    n = 10
 
     #
     # Whens
@@ -61,16 +59,13 @@ def test_masked_attention_bias():
                 assert m[i, j] == 0
 
 
-def test_attention_heads(bs: int, n: int):
+def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings: Array):
     #
     # Givens
     #
 
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # I generated sample embeddings
-    x = jnp.arange(bs * n * config.d_model).reshape(bs, n, config.d_model)
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens
@@ -104,17 +99,10 @@ def test_attention_heads(bs: int, n: int):
     assert (y == x).all()
 
 
-def test_forward(bs: int, n: int):
+def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, token_embeddings: Array):
     #
     # Givens
     #
-
-    # rng
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
 
     # I created Attention for layers.0.attention
     attention = ll.attention.create(config, params, "layers.0.attention")
@@ -123,12 +111,11 @@ def test_forward(bs: int, n: int):
     rope = ll.rope.create(config, n)
     mask = ll.attention.attention_mask(n, config.dtype)
 
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (bs, n, config.d_model))
-
     # I created a key/value cache
     kv_cache = LayerKVCache()
+
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens

@@ -45,7 +45,7 @@ def create(config: ModelConfig, n: int) -> Rope:
     r_cos = jnp.cos(theta_stack)
     r_sin = jnp.sin(theta_stack)
 
-    # Convert to dtype after all the upfront math is complete. 
+    # Convert to dtype after all the upfront math is complete.
     r_cos, r_sin = r_cos.astype(dtype), r_sin.astype(dtype)
 
     # Sanity check
@@ -82,7 +82,5 @@ def rotate(rope: Rope, x: ArrayLike) -> Array:
     Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`
     is the position of the pair in the embedding vector.
     """
-
     # Rotate
     return (x * rope.cos) + (swap(x) * rope.sin)
-

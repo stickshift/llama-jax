@@ -1,5 +1,5 @@
-import jax.dtypes
 from jax import numpy as jnp
+import jax.dtypes
 
 import llama_jax as ll
 
@@ -92,15 +92,18 @@ def test_rotate():
     rope = ll.rope.create(config, n)
 
     # I generated a sequence of 5 embeddings where the second pair of values (i=1) is (1, 0).
-    x = jnp.array([
+    x = jnp.array(
         [
-            [0, 0, 1, 0],
-            [0, 0, 1, 0],
-            [0, 0, 1, 0],
-            [0, 0, 1, 0],
-            [0, 0, 1, 0],
+            [
+                [0, 0, 1, 0],
+                [0, 0, 1, 0],
+                [0, 0, 1, 0],
+                [0, 0, 1, 0],
+                [0, 0, 1, 0],
+            ],
         ],
-    ], dtype=jax.dtypes.bfloat16)
+        dtype=jax.dtypes.bfloat16,
+    )
 
     #
     # Whens
@@ -132,4 +135,3 @@ def test_rotate():
 
     # 2pi
     assert (x[4, 2], x[4, 3]) == (1, 0)
-

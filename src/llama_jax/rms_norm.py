@@ -23,7 +23,6 @@ class RMSNorm(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters, path: str) -> RMSNorm:
     """Load Llama3 RMSNorm."""
-
     return RMSNorm(weight=params[f"{path}.weight"])
 
 

@@ -1,18 +1,10 @@
-from jax import numpy as jnp
-from jax import random
+from jax import Array
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -28,24 +20,13 @@ def test_factory():
     assert embeddings.values.shape == (config.vocab_size, config.d_model)
 
 
-def test_forward(bs: int, n: int):
+def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, token_ids: Array):
     #
     # Givens
     #
 
-    # rng key
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
     # I created Embeddings
     embeddings = ll.embeddings.create(config, params)
-
-    # I generated sample token_ids
-    key, subkey = random.split(key)
-    token_ids = random.uniform(subkey, (bs, n), maxval=config.vocab_size).astype(jnp.int32)
 
     #
     # Whens

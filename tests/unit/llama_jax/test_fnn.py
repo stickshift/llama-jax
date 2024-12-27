@@ -1,17 +1,10 @@
-from jax import random
+from jax import Array
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -29,24 +22,16 @@ def test_factory():
     assert ffn.output.shape == (config.d_ffn, config.d_model)
 
 
-def test_forward(bs: int, n: int):
+def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings: Array):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
     # I created FFN for layers.0.feed_forward
     ffn = ll.ffn.create(config, params, "layers.0.feed_forward")
 
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (bs, n, config.d_model))
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens

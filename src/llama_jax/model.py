@@ -99,6 +99,7 @@ def forward(
     return x, kv_cache
 
 
+@jax.jit
 def sample_tokens(
     logits: ArrayLike,
     *,
