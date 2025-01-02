@@ -1,6 +1,7 @@
-from jax import Array, random
+from jax import Array, dlpack
 from jax import numpy as jnp
 import pytest
+import torch
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -74,11 +75,18 @@ def token_ids() -> Array:
     return jnp.array(_token_ids)
 
 
-@pytest.fixture
-def token_embeddings(key: Array, bs: int, n: int, config: ModelConfig) -> Array:
-    """Randomly generated sample token embeddings."""
+@pytest.fixture(scope="session")
+def token_embeddings(torch_device, transformers_model) -> Array:
+    """Sample token embeddings."""
 
-    return random.normal(key, (bs, n, config.d_model))
+    # Map token_ids to embeddings using transformers as reference implementation
+    token_ids = torch.tensor(_token_ids, device=torch_device)
+    x = transformers_model.model.embed_tokens(token_ids)
+
+    # Convert from torch to jax
+    x = dlpack.from_dlpack(x.cpu())
+
+    return x
 
 
 @pytest.fixture
