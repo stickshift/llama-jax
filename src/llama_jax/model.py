@@ -75,7 +75,7 @@ def forward(
     query_length = token_ids.shape[-1]
 
     # Sequence length = cache length + query length
-    n = ll.kv_cache.length(kv_cache[0]) + query_length
+    n = ll.kv_cache.length(kv_cache) + query_length
 
     # RoPE rotation matrices
     rope = ll.rope.create(config, n)

@@ -44,8 +44,11 @@ def apply(cached_values: ArrayLike | None, values: ArrayLike) -> Array:
     return jnp.concat([cached_values, values], axis=-2)
 
 
-def length(kv_cache: LayerKVCache) -> int:
+def length(kv_cache: KVCache | LayerKVCache) -> int:
     """Return number of entries in cache."""
+
+    if not isinstance(kv_cache, LayerKVCache):
+        kv_cache = kv_cache[0]
 
     if kv_cache.keys is None:
         return 0
