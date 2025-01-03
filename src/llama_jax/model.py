@@ -99,7 +99,7 @@ def forward(
     return x, kv_cache
 
 
-@partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
+# @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def sample_tokens(
     logits: ArrayLike,
     *,
@@ -204,6 +204,12 @@ def sample_top_p(probs: ArrayLike, top_p: float | None = None) -> Array:
 @jax.vmap
 def select_index(probs: ArrayLike, key: ArrayLike) -> Array:
     """Randomly choose index weighted by probability."""
-    index = random.choice(key, jnp.arange(probs.shape[0]), p=probs)
+
+    # Redistribute probs
+    probs = probs / jnp.sum(probs)
+
+    # Randomly select index according to p
+    pool = jnp.arange(probs.shape[0])
+    index = random.choice(key, pool, p=probs)
 
     return index
