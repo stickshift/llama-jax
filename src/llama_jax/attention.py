@@ -171,13 +171,9 @@ def forward(
     v = v.repeat(reps, axis=HEAD_AXIS)
 
     # Encode positions by rotating queries and keys.
-    q_positions = jnp.arange(q.shape[TOKEN_AXIS])
+    #   Note we use last q.shape[TOKEN_AXIS] to handle both full sequence and subset scenarios.
     k_positions = jnp.arange(k.shape[TOKEN_AXIS])
-
-    # Assume queries are last n positions if we're processing a subset of tokens
-    if q_positions.shape != k_positions.shape:
-        q_positions = k_positions[-q.shape[TOKEN_AXIS]:]
-
+    q_positions = k_positions[-q.shape[TOKEN_AXIS]:]
     q = ll.rope.rotate(rope, q, positions=q_positions)
     k = ll.rope.rotate(rope, k, positions=k_positions)
 
