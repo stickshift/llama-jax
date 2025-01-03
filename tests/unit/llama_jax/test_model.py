@@ -113,7 +113,10 @@ def test_sample_top_p():
     # I generate 2 batches of sample probs:
     #   0.1, 0.2, 0.3, 0.4
     #   0.05, 0.1, 0.15, 0.7
-    probs = jnp.stack([jnp.array([0.1, 0.2, 0.3, 0.4]), jnp.array([0.05, 0.1, 0.15, 0.7])])
+    probs = jnp.array([
+        [0.1, 0.2, 0.3, 0.4],
+        [0.05, 0.1, 0.15, 0.7],
+    ])
 
     #
     # Whens
@@ -129,11 +132,8 @@ def test_sample_top_p():
     # Probs should be
     #   0.1, 0.0, 0.0, 0.0
     #   0.05, 0.1, 0.0, 0.0
-    assert jnp.allclose(
-        probs,
-        jnp.stack([jnp.array([0.1, 0.0, 0.0, 0.0]), jnp.array([0.05, 0.1, 0.0, 0.0])]),
-        atol=0.01,
-    )
+    assert (probs[0] == jnp.array([0.1, 0.0, 0.0, 0.0])).all()
+    assert (probs[1] == jnp.array([0.05, 0.1, 0.0, 0.0])).all()
 
 
 def test_sample_tokens(config: ModelConfig, key: Array):

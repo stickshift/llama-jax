@@ -60,7 +60,7 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     )
 
 
-# @partial(jax.jit, static_argnames=("config",))
+@partial(jax.jit, static_argnames=("config",))
 def forward(
     config: ModelConfig,
     state: Model,
