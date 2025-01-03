@@ -7,7 +7,7 @@ from jax import numpy as jnp
 from jax.typing import ArrayLike
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, ModelParameters
+from llama_jax.checkpoint import ModelConfig, ModelParameters, TOKEN_AXIS
 from llama_jax.rms_norm import RMSNorm
 
 __all__ = [
@@ -15,13 +15,6 @@ __all__ = [
     "create",
     "forward",
 ]
-
-
-# ------------------------------------------------------------------------------
-# Constants
-# ------------------------------------------------------------------------------
-
-_TOKEN_AXIS = -2
 
 
 # ------------------------------------------------------------------------------
@@ -54,16 +47,7 @@ def forward(config: ModelConfig, state: Head, x: ArrayLike) -> Array:
     x = ll.rms_norm.forward(config, state.norm, x)
 
     # Use last embedding to represent the entire sequence.
-    #   Note: If x is batched, we need to swap token dimension to front before using x[-1]
-    #
-    swap = x.ndim > 2
-    if swap:
-        x = jnp.swapaxes(x, 0, _TOKEN_AXIS)
-
-    x = x[-1]
-
-    if swap:
-        x = jnp.swapaxes(x, 0, _TOKEN_AXIS)
+    x = jnp.swapaxes(x, 0, TOKEN_AXIS)[-1]
 
     # Project outputs to token space
     x = x @ state.output

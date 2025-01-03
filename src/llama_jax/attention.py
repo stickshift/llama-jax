@@ -47,10 +47,10 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     parent_path = path.rsplit(".", 1)[0]
 
     # Note we transpose kernels so we don't need to during forward pass
-    queries = params[f"{path}.wq.weight"].transpose()
-    keys = params[f"{path}.wk.weight"].transpose()
-    values = params[f"{path}.wv.weight"].transpose()
-    output = params[f"{path}.wo.weight"].transpose()
+    queries = params[f"{path}.wq.weight"].transpose().astype(config.dtype)
+    keys = params[f"{path}.wk.weight"].transpose().astype(config.dtype)
+    values = params[f"{path}.wv.weight"].transpose().astype(config.dtype)
+    output = params[f"{path}.wo.weight"].transpose().astype(config.dtype)
 
     return Attention(
         norm=ll.rms_norm.create(config, params, f"{parent_path}.attention_norm"),

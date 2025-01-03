@@ -6,6 +6,7 @@ import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.kv_cache import LayerKVCache
 
+from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 def test_factory():
     #
@@ -29,9 +30,16 @@ def test_factory():
 
     # attention should be populated
     assert attention.queries.shape == (config.d_model, config.n_heads * config.d_head)
+    assert attention.queries.dtype == config.dtype
+
     assert attention.keys.shape == (config.d_model, config.n_kv_heads * config.d_head)
+    assert attention.keys.dtype == config.dtype
+
     assert attention.values.shape == (config.d_model, config.n_kv_heads * config.d_head)
+    assert attention.values.dtype == config.dtype
+
     assert attention.output.shape == (config.d_model, config.d_model)
+    assert attention.output.dtype == config.dtype
 
 
 def test_masked_attention_bias(n: int):
@@ -99,7 +107,14 @@ def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings:
     assert (y == x).all()
 
 
-def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, token_embeddings: Array):
+def test_forward(
+    config: ModelConfig,
+    params: ModelParameters,
+    bs: int,
+    n: int,
+    token_embeddings: Array,
+    attention0: Array,
+):
     #
     # Givens
     #
@@ -122,11 +137,11 @@ def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, 
     #
 
     # I transform x w/ attention
-    y, kv_cache = ll.attention.forward(config, attention, rope, mask, kv_cache, x)
+    x, kv_cache = ll.attention.forward(config, attention, rope, mask, kv_cache, x)
 
     #
     # Thens
     #
 
-    # y.shape didn't change
-    assert y.shape == x.shape
+    # x should match expected attention
+    assert_similar_arrays(x, attention0)

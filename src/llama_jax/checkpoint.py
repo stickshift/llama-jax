@@ -8,7 +8,7 @@ import pickle
 from typing import NamedTuple
 
 from jax import Array
-from jax.dtypes import bfloat16
+from jax import numpy as jnp
 from jax.typing import DTypeLike
 
 from .tokenizer import Tokenizer
@@ -106,7 +106,7 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
         "n_kv_heads": hparams["n_kv_heads"],
         "rope_theta": hparams["rope_theta"],
         "d_ffn": d_ffn,
-        "dtype": bfloat16,
+        "dtype": jnp.float32,
         "training": TrainingLevel.INSTRUCT if checkpoint_name.endswith("-Instruct") else TrainingLevel.PRETRAINED,
     }
 

@@ -22,7 +22,7 @@ class Embeddings(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters) -> Embeddings:
     """Load Llama3 Embeddings."""
-    return Embeddings(values=params["tok_embeddings.weight"])
+    return Embeddings(values=params["tok_embeddings.weight"].astype(config.dtype))
 
 
 def forward(config: ModelConfig, state: Embeddings, token_ids: ArrayLike) -> Array:

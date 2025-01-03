@@ -108,3 +108,30 @@ def test_rms_norm_scaling(config: ModelConfig, bs: int, n: int, key: Array):
 
     # y1 should approx equal y0
     assert ((y1 - y0) < 1e-2).all()
+
+
+def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings: Array, attention_norm0: Array):
+
+    #
+    # Givens
+    #
+
+    # I created RMSNorm from layer 0 attention
+    norm = ll.rms_norm.create(config, params, f"layers.0.attention_norm")
+
+    # I initialize x from token embeddings
+    x = token_embeddings
+
+    #
+    # Whens
+    #
+
+    # I normalize x
+    x = ll.rms_norm.forward(config, norm, x)
+
+    #
+    # Thens
+    #
+
+    # x should match expected attention_norm0
+    assert jnp.allclose(x, attention_norm0)

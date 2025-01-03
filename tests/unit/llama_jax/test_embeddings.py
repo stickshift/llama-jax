@@ -20,7 +20,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
     assert embeddings.values.shape == (config.vocab_size, config.d_model)
 
 
-def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, token_ids: Array):
+def test_forward(config: ModelConfig, params: ModelParameters, token_ids: Array, token_embeddings: Array):
     #
     # Givens
     #
@@ -39,5 +39,11 @@ def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, 
     # Thens
     #
 
-    # x is bs x n x d_model array
-    assert x.shape == (bs, n, config.d_model)
+    # x shape matches expected embeddings
+    assert x.shape == token_embeddings.shape
+
+    # x dtype matches expected embeddings
+    assert x.dtype == token_embeddings.dtype
+
+    # x values match expected embeddings
+    assert (x == token_embeddings).all()

@@ -2,16 +2,10 @@ from jax import numpy as jnp
 import jax.dtypes
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig
 
 
-def test_factory(n: int):
-    #
-    # Givens
-    #
-
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
+def test_factory(config: ModelConfig, n: int):
     #
     # Whens
     #
@@ -27,9 +21,9 @@ def test_factory(n: int):
     assert rope.cos.shape == (n, config.d_head)
     assert rope.sin.shape == (n, config.d_head)
 
-    # rotation matrices should always be bfloat16
-    assert rope.cos.dtype == jax.dtypes.bfloat16
-    assert rope.sin.dtype == jax.dtypes.bfloat16
+    # rotation matrices should match config dtype
+    assert rope.cos.dtype == config.dtype
+    assert rope.sin.dtype == config.dtype
 
 
 def test_swap():

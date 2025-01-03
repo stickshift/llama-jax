@@ -9,6 +9,8 @@ from llama_jax.head import Head
 from llama_jax.layer import Layer
 from llama_jax.tokenizer import Tokenizer
 
+from tests.fixtures.jax_fixtures import assert_similar_arrays
+
 
 def test_factory(config: ModelConfig, params: ModelParameters):
     #
@@ -34,10 +36,20 @@ def test_factory(config: ModelConfig, params: ModelParameters):
     assert isinstance(model.head, Head)
 
 
-def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, token_ids: Array):
+def test_forward(
+    config: ModelConfig,
+    params: ModelParameters,
+    bs: int,
+    n: int,
+    token_ids: Array,
+    logits: Array,
+):
     #
     # Givens
     #
+
+    # I initialize x w/ token ids
+    x = token_ids
 
     # I created a Model
     model = ll.model.create(config, params)
@@ -49,20 +61,20 @@ def test_forward(config: ModelConfig, params: ModelParameters, bs: int, n: int, 
     # Whens
     #
 
-    # I transform token_ids
-    logits, kv_cache = ll.model.forward(config, model, kv_cache, token_ids)
+    # I transform x into logits
+    x, kv_cache = ll.model.forward(config, model, kv_cache, x)
 
     #
     # Thens
     #
 
-    # logits.shape should be (bs, config.vocab_size)
-    assert logits.shape == (bs, config.vocab_size)
-
     # kv_cache should be populated
     for i in range(config.n_layers):
         assert kv_cache[i].keys.shape == (bs, config.n_kv_heads, n, config.d_head)
         assert kv_cache[i].values.shape == (bs, config.n_kv_heads, n, config.d_head)
+
+    # x should match expected logits
+    assert_similar_arrays(x, logits)
 
 
 def test_sample_top_k(config: ModelConfig, bs: int, key: Array):

@@ -23,7 +23,7 @@ class RMSNorm(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters, path: str) -> RMSNorm:
     """Load Llama3 RMSNorm."""
-    return RMSNorm(weight=params[f"{path}.weight"])
+    return RMSNorm(weight=params[f"{path}.weight"].astype(config.dtype))
 
 
 def forward(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
@@ -34,7 +34,7 @@ def forward(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
     # Sanity check
     assert x.ndim == 3
 
-    return state.weight * _norm(config, state, x.astype(jnp.float32)).astype(x.dtype)
+    return state.weight * _norm(config, state, x)
 
 
 def _norm(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:

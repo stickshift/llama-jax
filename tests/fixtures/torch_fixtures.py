@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="session")
 def torch_disable_gradients():
     """Disable gradient tracking globally."""
 
