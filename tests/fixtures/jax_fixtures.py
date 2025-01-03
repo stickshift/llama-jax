@@ -1,3 +1,4 @@
+from time import time_ns
 from jax import Array, random, numpy as jnp
 import pytest
 
@@ -12,7 +13,7 @@ __all__ = [
 @pytest.fixture
 def key() -> Array:
     """Random number generator key."""
-    return random.key(42)
+    return random.key(time_ns())
 
 
 def similarity_scores(x: Array, y: Array):

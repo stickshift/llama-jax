@@ -1,17 +1,14 @@
-from jax import random
+from jax import Array, random
 import pytest
 
 import llama_jax as ll
 
 
 @pytest.mark.wip
-def test_323b():
+def test_323b(key: Array):
     #
     # Givens
     #
-
-    # rng
-    key = random.key(42)
 
     # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
