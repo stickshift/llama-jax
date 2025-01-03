@@ -311,7 +311,7 @@ def logits(config: ModelConfig, bs: int, torch_device, reference_model: Transfor
     x = dlpack.from_dlpack(x.cpu())
 
     # Only keep logits for last embedding
-    x = jnp.swapaxes(x, 0, TOKEN_AXIS)[-1]
+    x = x[:, -1]
 
     # Sanity check
     assert x.shape == (bs, config.vocab_size)

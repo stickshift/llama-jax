@@ -47,7 +47,7 @@ def forward(config: ModelConfig, state: Head, x: ArrayLike) -> Array:
     x = ll.rms_norm.forward(config, state.norm, x)
 
     # Use last embedding to represent the entire sequence.
-    x = jnp.swapaxes(x, 0, TOKEN_AXIS)[-1]
+    x = x[:, -1]
 
     # Project outputs to token space
     x = x @ state.output
