@@ -71,14 +71,17 @@ def forward(
     # Sanity check
     assert token_ids.ndim == 2
 
-    # Sequence length
-    n = token_ids.shape[-1]
+    # Query length = tokens length
+    query_length = token_ids.shape[-1]
+
+    # Sequence length = cache length + query length
+    n = ll.kv_cache.length(kv_cache[0]) + query_length
 
     # RoPE rotation matrices
     rope = ll.rope.create(config, n)
 
     # Masked attention bias
-    mask = ll.attention.attention_mask(n, config.dtype)
+    mask = ll.attention.attention_mask(query_length, config.dtype)
 
     # Map token ids to embeddings
     x = ll.embeddings.forward(config, state.embeddings, token_ids)
@@ -103,12 +106,13 @@ def forward(
 def sample_tokens(
     logits: ArrayLike,
     *,
-    key: ArrayLike,
+    key: ArrayLike | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
 ) -> Array:
     """Select next token using temperature, top_p, and top_k sampling."""
+
     # Sanity check
     assert logits.ndim == 2
 
@@ -118,6 +122,10 @@ def sample_tokens(
 
     # Defaults
     temperature = default_arg(temperature, 0.6)
+
+    # Validate
+    if key is None and temperature != 0:
+        raise ValueError(f"Key must be specified unless temperature is 0.")
 
     # Temperature
     # -----------

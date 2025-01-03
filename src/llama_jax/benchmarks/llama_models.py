@@ -26,6 +26,10 @@ __all__ = [
 # dependencies. These dependencies are not part of the default dependencies
 # (requirements.txt) of the `llama-models` package.
 
+# ASY: Hardcode this here
+max_batch_size = 5
+max_seq_len = 512
+
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, device, eps: float = 1e-6):
@@ -175,7 +179,7 @@ class Attention(nn.Module):
 
         xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
 
-        # ASY: Removed caching for now
+        # ASY: Remove caches
         keys = xk
         values = xv
 
@@ -189,9 +193,7 @@ class Attention(nn.Module):
 
         xq = xq.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
         keys = keys.transpose(1, 2)  # (bs, n_local_heads, cache_len + seqlen, head_dim)
-        values = values.transpose(
-            1, 2
-        )  # (bs, n_local_heads, cache_len + seqlen, head_dim)
+        values = values.transpose(1, 2)  # (bs, n_local_heads, cache_len + seqlen, head_dim)
         scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.config.d_head)
         if mask is not None:
             scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
@@ -268,9 +270,6 @@ class Transformer(nn.Module):
         self.norm = RMSNorm(config.d_model, device=device, eps=config.rms_norm_eps)
         self.output = nn.Linear(config.d_model, config.vocab_size, bias=False, device=device)
 
-        # ASY: Hardcode this here
-        max_seq_len = 512
-
         self.freqs_cis = precompute_freqs_cis(
             config.d_model // config.n_heads,
             max_seq_len * 2,
@@ -314,3 +313,28 @@ class Transformer(nn.Module):
         output = self.output(h).float()
 
         return output
+
+
+def sample_top_p(probs, p):
+    """
+    Perform top-p (nucleus) sampling on a probability distribution.
+
+    Args:
+        probs (torch.Tensor): Probability distribution tensor.
+        p (float): Probability threshold for top-p sampling.
+
+    Returns:
+        torch.Tensor: Sampled token indices.
+
+    Note:
+        Top-p sampling selects the smallest set of tokens whose cumulative probability mass
+        exceeds the threshold p. The distribution is renormalized based on the selected tokens.
+    """
+    probs_sort, probs_idx = torch.sort(probs, dim=-1, descending=True)
+    probs_sum = torch.cumsum(probs_sort, dim=-1)
+    mask = probs_sum - probs_sort > p
+    probs_sort[mask] = 0.0
+    probs_sort.div_(probs_sort.sum(dim=-1, keepdim=True))
+    next_token = torch.multinomial(probs_sort, num_samples=1)
+    next_token = torch.gather(probs_idx, -1, next_token)
+    return next_token

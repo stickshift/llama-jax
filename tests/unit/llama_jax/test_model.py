@@ -1,16 +1,21 @@
+import numpy as np
+
 import pytest
-from jax import Array, random
+from jax import Array, random, dlpack
 from jax import numpy as jnp
 from jax.nn import softmax
 
+import torch
+
 import llama_jax as ll
+from llama_jax.benchmarks.llama_models import Transformer
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.embeddings import Embeddings
 from llama_jax.head import Head
 from llama_jax.layer import Layer
 from llama_jax.tokenizer import Tokenizer
 
-from tests.fixtures.jax_fixtures import assert_similar_arrays, similarity_scores
+from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 
 def test_factory(config: ModelConfig, params: ModelParameters):
@@ -76,6 +81,81 @@ def test_forward(
 
     # x should match expected logits
     assert_similar_arrays(x, logits)
+
+
+def test_forward_w_cache(config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer, torch_device, reference_model: Transformer):
+    #
+    # Givens
+    #
+
+    # I created a Model
+    model = ll.model.create(config, params)
+
+    # I created a key/value cache
+    kv_cache = ll.kv_cache.create(config)
+
+    # I initialize token_ids
+    token_ids = tokenizer.encode(["one two three four five six seven eight"])
+
+    #
+    # Whens
+    #
+
+    # I map "<bos> one two three" to logits using reference model
+    x = token_ids[:, 0:4]
+    logits0 = reference_model(torch.tensor(np.array(x), device=torch_device))[:, -1]
+    logits0 = dlpack.from_dlpack(logits0.cpu())
+
+    # I map "<bos> one two three" to logits using empty cache
+    x = token_ids[:, 0:4]
+    logits1, kv_cache = ll.model.forward(config, model, kv_cache, x)
+
+    #
+    # Thens
+    #
+
+    # Logits for last embedding vector should match
+    assert_similar_arrays(logits0, logits1)
+
+    #
+    # Whens
+    #
+
+    # I map "<bos> one two three four" to logits using reference model
+    x = token_ids[:, 0:5]
+    logits0 = reference_model(torch.tensor(np.array(x), device=torch_device))[:, -1]
+    logits0 = dlpack.from_dlpack(logits0.cpu())
+
+    # I map "<bos> one two three four" to logits using full cache
+    x = token_ids[:, 4:5]
+    logits1, kv_cache = ll.model.forward(config, model, kv_cache, x)
+
+    #
+    # Thens
+    #
+
+    # Logits for last embedding vector should match
+    assert_similar_arrays(logits0, logits1)
+
+    #
+    # Whens
+    #
+
+    # I map "<bos> one two three four five" to logits using reference model
+    x = token_ids[:, 0:6]
+    logits0 = reference_model(torch.tensor(np.array(x), device=torch_device))[:, -1]
+    logits0 = dlpack.from_dlpack(logits0.cpu())
+
+    # I map "<bos> one two three four five" to logits using full cache
+    x = token_ids[:, 5:6]
+    logits1, kv_cache = ll.model.forward(config, model, kv_cache, x)
+
+    #
+    # Thens
+    #
+
+    # Logits for last embedding vector should match
+    assert_similar_arrays(logits0, logits1)
 
 
 def test_sample_top_k(config: ModelConfig, bs: int, key: Array):
@@ -171,15 +251,7 @@ def test_sample_tokens(config: ModelConfig, key: Array):
     assert next_token_ids[1][0] == 1
 
 
-def test_generate(
-    config: ModelConfig,
-    params: ModelParameters,
-    tokenizer: Tokenizer,
-    bs: int,
-    n: int,
-    token_ids: Array,
-    key: Array,
-):
+def test_generate_wo_sampling(config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer):
     #
     # Givens
     #
@@ -190,41 +262,46 @@ def test_generate(
     # I created a key/value cache
     kv_cache = ll.kv_cache.create(config)
 
-    # Max tokens
-    max_tokens = 5
+    # Sequence prompts
+    prompts = [
+        "A B C D",
+        "one two three four",
+    ]
+
+    # I split prompts into token ids
+    token_ids = tokenizer.encode(prompts)
 
     #
     # Whens
     #
 
-    # Initialize x with entire sequence on first pass
+    # I use entire sequence on first pass
     x = token_ids
 
-    # I sample up to max tokens
-    for _ in range(max_tokens):
-        # Transform tokens
+    # I generate 5 tokens
+    for _ in range(5):
+
+        # Transform x into logits
         logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
 
-        # Sample next token
-        key, subkey = random.split(key)
-        next_token_id = ll.model.sample_tokens(logits, key=subkey)
+        # Use most likely next token
+        next_token_id = jnp.argmax(logits, axis=-1, keepdims=True)
+
+        # Append next token
         token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
 
-        # Subsequent iterations process one token at a time
+        # Use single token on subsequent passes
         x = next_token_id
 
-        # Break on stop tokens
-        if all(v in tokenizer.stop_tokens for v in next_token_id.flatten()):
-            break
+    # I decode token_ids
+    text = tokenizer.decode(token_ids, strip_special=True)
 
     #
     # Thens
     #
 
-    # there should be n + max_tokens tokens
-    assert token_ids.shape[-1] == n + max_tokens
-
-    # kv_cache should be populated
-    for i in range(config.n_layers):
-        assert kv_cache[i].keys.shape == (bs, config.n_kv_heads, token_ids.shape[-1] - 1, config.d_head)
-        assert kv_cache[i].values.shape == (bs, config.n_kv_heads, token_ids.shape[-1] - 1, config.d_head)
+    # text should be
+    assert text == (
+        "A B C D E F G H I",
+        "one two three four five six seven eight nine",
+    )

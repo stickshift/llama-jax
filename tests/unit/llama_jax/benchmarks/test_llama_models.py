@@ -1,12 +1,12 @@
 import numpy as np
-from jax import Array
+from jax import Array, dlpack
 
 import torch
 
 from llama_jax.checkpoint import ModelConfig
-
 from llama_jax.benchmarks import llama_models as llm
 from llama_jax.benchmarks.llama_models import Transformer
+from llama_jax.tokenizer import Tokenizer
 
 
 def test_transformer(config: ModelConfig, torch_device, bs: int, n: int, token_ids: Array):
@@ -29,12 +29,63 @@ def test_transformer(config: ModelConfig, torch_device, bs: int, n: int, token_i
     #
 
     # I transform x into logits
-    y = transformer(x)
+    logits = transformer(x)
 
     #
     # Thens
     #
 
-    # y.shape should be (bs, n, vocab_size)
-    assert y.shape == (bs, n, config.vocab_size)
+    # logits.shape should be (bs, n, vocab_size)
+    assert logits.shape == (bs, n, config.vocab_size)
 
+
+def test_generate_wo_sampling(config: ModelConfig, torch_device, tokenizer: Tokenizer):
+    #
+    # Givens
+    #
+
+    # Torch device
+    device = torch_device
+
+    # I created a llama-models transformer
+    transformer = Transformer(config, device)
+    transformer.load_state_dict(llm.load_parameters(config, device=device))
+
+    # Sequence prompts
+    prompts = [
+        "A B C D",
+        "one two three four",
+    ]
+
+    # I split prompts into token ids
+    token_ids = torch.tensor(np.array(tokenizer.encode(prompts)), device=device)
+
+    #
+    # Whens
+    #
+
+    # I generate 5 tokens
+    for _ in range(5):
+
+        # Transform token_ids into logits
+        logits = transformer(token_ids)
+
+        # Use most likely next token
+        next_token_id = torch.argmax(logits[:, -1], dim=-1, keepdim=True)
+
+        # Append next token
+        token_ids = torch.concat([token_ids, next_token_id], dim=-1)
+
+    # I decode token_ids
+    token_ids = dlpack.from_dlpack(token_ids.cpu())
+    text = tokenizer.decode(token_ids, strip_special=True)
+
+    #
+    # Thens
+    #
+
+    # text should be
+    assert text == (
+        "A B C D E F G H I",
+        "one two three four five six seven eight nine",
+    )

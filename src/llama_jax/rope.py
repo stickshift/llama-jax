@@ -6,7 +6,7 @@ from jax import Array
 from jax import numpy as jnp
 from jax.typing import ArrayLike
 
-from llama_jax.checkpoint import ModelConfig
+from llama_jax.checkpoint import ModelConfig, TOKEN_AXIS, HEAD_AXIS, MODEL_AXIS, BATCH_AXIS
 
 __all__ = [
     "Rope",
@@ -82,5 +82,36 @@ def rotate(rope: Rope, x: ArrayLike) -> Array:
     Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`
     is the position of the pair in the embedding vector.
     """
+
+    remove_filler = False
+
+    # Preserve original shape
+    shape = x.shape
+
+    # If rope has multiple values and x does not, assume x is last entry
+    n = rope.cos.shape[0]
+    if n != x.shape[TOKEN_AXIS]:
+        # Only case where this should happen is when x is a single generated token
+        if x.shape[TOKEN_AXIS] != 1:
+            raise ValueError(f"Unexpected number of embeddings {x.shape[TOKEN_AXIS]}")
+
+        # Add filler entries
+        x = jnp.concat([
+            jnp.zeros((x.shape[BATCH_AXIS], x.shape[HEAD_AXIS], n-1, x.shape[MODEL_AXIS])),
+            x,
+        ], axis=TOKEN_AXIS)
+
+        remove_filler = True
+
     # Rotate
-    return (x * rope.cos) + (swap(x) * rope.sin)
+    x = (x * rope.cos) + (swap(x) * rope.sin)
+
+    # Remove filler
+    if remove_filler:
+        # Extract last embedding vector
+        x = x[:, :, -1]
+
+        # Reshape
+        x = jnp.reshape(x, shape)
+
+    return x

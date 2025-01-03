@@ -98,10 +98,22 @@ class Tokenizer:
 
         return jnp.array(token_ids)
 
-    def decode(self, token_ids: Array) -> Sequence[str]:
+    def decode(self, token_ids: Array, strip_special: bool | None = None) -> Sequence[str]:
         """Decodes token_ids into sequence of strings."""
+        # Defaults
+        strip_special = default_arg(strip_special, False)
+
         # Validate
         if token_ids.ndim != 2:
             raise ValueError(f"token_ids is not a 2D array: {token_ids.shape}")
 
-        return tuple(self.model.decode(v.tolist()) for v in token_ids)
+        # Collect token ids to decode
+        values = [
+            [
+                tid.item()
+                for tid in tids if (not strip_special) or (tid not in self.special_tokens.values())
+            ]
+            for tids in token_ids
+        ]
+
+        return tuple(self.model.decode(v) for v in values)

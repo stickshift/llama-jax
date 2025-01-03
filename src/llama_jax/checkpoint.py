@@ -14,6 +14,7 @@ from jax.typing import DTypeLike
 from .tokenizer import Tokenizer
 
 __all__ = [
+    "BATCH_AXIS",
     "HEAD_AXIS",
     "MODEL_AXIS",
     "TOKEN_AXIS",
@@ -29,6 +30,7 @@ __all__ = [
 # Constants
 # ------------------------------------------------------------------------------
 
+BATCH_AXIS = -4
 HEAD_AXIS = -3
 TOKEN_AXIS = -2
 MODEL_AXIS = -1
