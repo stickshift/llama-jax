@@ -1,3 +1,4 @@
+import pytest
 from jax import Array, random
 from jax import numpy as jnp
 from jax.nn import softmax
@@ -9,7 +10,7 @@ from llama_jax.head import Head
 from llama_jax.layer import Layer
 from llama_jax.tokenizer import Tokenizer
 
-from tests.fixtures.jax_fixtures import assert_similar_arrays
+from tests.fixtures.jax_fixtures import assert_similar_arrays, similarity_scores
 
 
 def test_factory(config: ModelConfig, params: ModelParameters):

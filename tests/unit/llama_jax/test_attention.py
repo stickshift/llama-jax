@@ -4,7 +4,8 @@ from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
-from llama_jax.kv_cache import LayerKVCache
+from llama_jax.kv_cache import LayerKVCache, MutableKVCache
+from llama_jax.rope import Rope
 
 from tests.fixtures.jax_fixtures import assert_similar_arrays
 
@@ -107,13 +108,15 @@ def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings:
     assert (y == x).all()
 
 
-def test_forward(
+def test_forward_0(
     config: ModelConfig,
     params: ModelParameters,
+    rope: Rope,
+    mask: Array,
     bs: int,
     n: int,
     token_embeddings: Array,
-    attention0: Array,
+    attention_0: Array,
 ):
     #
     # Givens
@@ -121,10 +124,6 @@ def test_forward(
 
     # I created Attention for layers.0.attention
     attention = ll.attention.create(config, params, "layers.0.attention")
-
-    # I created rope and attention mask
-    rope = ll.rope.create(config, n)
-    mask = ll.attention.attention_mask(n, config.dtype)
 
     # I created a key/value cache
     kv_cache = LayerKVCache()
@@ -143,5 +142,53 @@ def test_forward(
     # Thens
     #
 
-    # x should match expected attention
-    assert_similar_arrays(x, attention0)
+    # x should match expected output
+    assert_similar_arrays(x, attention_0)
+
+
+def test_forward_n(
+    config: ModelConfig,
+    params: ModelParameters,
+    rope: Rope,
+    mask: Array,
+    bs: int,
+    n: int,
+    token_embeddings: Array,
+    attention_n: Array,
+):
+    #
+    # Givens
+    #
+
+    # I created model
+    model = ll.model.create(config, params)
+
+    # I created a key/value cache
+    kv_cache = ll.kv_cache.create(config)
+    kv_cache = MutableKVCache(kv_cache)
+
+    # Sample embeddings
+    x = token_embeddings
+
+    #
+    # Whens
+    #
+
+    # I transform x w/ n layers
+    for i, layer in enumerate(model.layers):
+        # Attention
+        x, kv_cache[i] = ll.attention.forward(config, layer.attention, rope, mask, kv_cache[i], x)
+
+        # Bail on last layer
+        if i == config.n_layers - 1:
+            break
+
+        # FFN
+        x = ll.ffn.forward(config, layer.ffn, x)
+
+    #
+    # Thens
+    #
+
+    # x should match expected output
+    assert_similar_arrays(x, attention_n)

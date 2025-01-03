@@ -2,16 +2,19 @@ from tests.fixtures.jax_fixtures import key
 from tests.fixtures.llama import (
     bs,
     config,
-    attention0,
+    attention_0,
+    attention_n,
     attention_norm0,
     logits,
     mask,
     n,
+    ffn_n,
     params,
     rope,
     token_embeddings,
     token_ids,
     tokenizer,
+    ffn_0,
 )
 from tests.fixtures.mmlu import mmlu_dataset_path
 from tests.fixtures.torch_fixtures import torch_device, torch_disable_gradients
@@ -31,7 +34,7 @@ __all__ = [
     "build_path",
     "config",
     "datasets_path",
-    "attention0",
+    "attention_0",
     "logits",
     "key",
     "log_levels",
@@ -49,4 +52,7 @@ __all__ = [
     "reference_model",
     "workspace_env",
     "workspace_path",
+    "ffn_0",
+    "attention_n",
+    "ffn_n",
 ]

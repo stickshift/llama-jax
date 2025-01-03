@@ -1,6 +1,8 @@
 from jax import Array, random, numpy as jnp
 import pytest
 
+from llama_jax.tools import default_arg
+
 __all__ = [
     "key",
     "assert_similar_arrays",
@@ -13,8 +15,8 @@ def key() -> Array:
     return random.key(42)
 
 
-def assert_similar_arrays(x: Array, y: Array):
-    """Asserts vectors along last dimension of x and y are similar."""
+def similarity_scores(x: Array, y: Array):
+    """Compares vectors along last dimension of x and y are similar."""
 
     # Sanity check
     assert x.shape == y.shape
@@ -27,5 +29,17 @@ def assert_similar_arrays(x: Array, y: Array):
     # Compare x and y using cosine similarity
     scores = jnp.array([jnp.dot(x[i], y[i]) / jnp.sum(jnp.pow(y[i], 2)) for i in range(n)])
 
+    return scores, n
+
+
+def assert_similar_arrays(x: Array, y: Array, atol: float | None = None):
+    """Asserts vectors along last dimension of x and y are similar."""
+
+    # Defaults
+    atol = default_arg(atol, 0.01)
+
+    # Compare x and y using cosine similarity
+    scores, n = similarity_scores(x, y)
+
     # Verify scores are all close to perfect 1.0
-    assert jnp.allclose(scores, jnp.ones(n))
+    assert jnp.allclose(scores, jnp.ones(n), atol=atol)
