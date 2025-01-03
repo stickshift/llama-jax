@@ -170,9 +170,16 @@ def forward(
     k = k.repeat(reps, axis=HEAD_AXIS)
     v = v.repeat(reps, axis=HEAD_AXIS)
 
-    # Encode positions by rotating queries and keys
-    q = ll.rope.rotate(rope, q)
-    k = ll.rope.rotate(rope, k)
+    # Encode positions by rotating queries and keys.
+    q_positions = jnp.arange(q.shape[TOKEN_AXIS])
+    k_positions = jnp.arange(k.shape[TOKEN_AXIS])
+
+    # Assume queries are last n positions if we're processing a subset of tokens
+    if q_positions.shape != k_positions.shape:
+        q_positions = k_positions[-q.shape[TOKEN_AXIS]:]
+
+    q = ll.rope.rotate(rope, q, positions=q_positions)
+    k = ll.rope.rotate(rope, k, positions=k_positions)
 
     # Compute attention for all heads in parallel
     #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V

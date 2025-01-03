@@ -85,7 +85,11 @@ def test_rotate():
     )
     rope = ll.rope.create(config, n)
 
-    # I generated a sequence of 5 embeddings where the second pair of values (i=1) is (1, 0).
+    #
+    # Whens
+    #
+
+    # I generate x as entire sequence of n "rotatable" embeddings (where the second pair of values (i=1) is (1, 0)).
     x = jnp.array(
         [
             [
@@ -96,15 +100,14 @@ def test_rotate():
                 [0, 0, 1, 0],
             ],
         ],
-        dtype=jax.dtypes.bfloat16,
+        dtype=config.dtype,
     )
 
-    #
-    # Whens
-    #
+    # I specify positions for entire sequence [0, n)
+    positions = jnp.arange(n)
 
     # I rotate x
-    x = ll.rope.rotate(rope, x)
+    x = ll.rope.rotate(rope, x, positions)
 
     # I drop the batch dimension and round to 2 decimal places
     x = jnp.round(x[0], decimals=2)
@@ -129,3 +132,39 @@ def test_rotate():
 
     # 2pi
     assert (x[4, 2], x[4, 3]) == (1, 0)
+
+    #
+    # Whens
+    #
+
+    # I generate x as a subset of 2 "rotatable" embeddings
+    x = jnp.array(
+        [
+            [
+                [0, 0, 1, 0],
+                [0, 0, 1, 0],
+            ],
+        ],
+        dtype=config.dtype,
+    )
+
+    # I specify positions for positions [2, 3]
+    positions = jnp.array([2, 3])
+
+    # I rotate x
+    x = ll.rope.rotate(rope, x, positions)
+
+    # I drop the batch dimension and round to 2 decimal places
+    x = jnp.round(x[0], decimals=2)
+
+    #
+    # Thens
+    #
+
+    # Embeddings should be rotated in increments of pi/2
+
+    # pi
+    assert (x[0, 2], x[0, 3]) == (-1, 0)
+
+    # 3pi/2
+    assert (x[1, 2], x[1, 3]) == (0, -1)
