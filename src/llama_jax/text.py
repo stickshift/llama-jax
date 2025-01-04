@@ -74,9 +74,9 @@ def _generate(
     # Initialize x with entire sequence on first pass
     x = token_ids
 
-    # I sample up to max tokens
+    # Sample up to max tokens
     for _ in range(max_tokens):
-        # Transform tokens
+        # Transform x into logits
         logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
 
         # Sample next token

@@ -39,7 +39,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
     assert isinstance(model.head, Head)
 
 
-def test_forward(
+def test_forward_single_pass(
     config: ModelConfig,
     params: ModelParameters,
     bs: int,
@@ -51,9 +51,6 @@ def test_forward(
     # Givens
     #
 
-    # I initialize x w/ token ids
-    x = token_ids
-
     # I created a Model
     model = ll.model.create(config, params)
 
@@ -64,24 +61,28 @@ def test_forward(
     # Whens
     #
 
-    # I transform x into logits
-    x, kv_cache = ll.model.forward(config, model, kv_cache, x)
+    # I transform token ids into logits
+    x, kv_cache = ll.model.forward(config, model, kv_cache, token_ids)
 
     #
     # Thens
     #
+
+    # x should match expected logits
+    assert_similar_arrays(x, logits)
 
     # kv_cache should be populated
     for i in range(config.n_layers):
         assert kv_cache[i].keys.shape == (bs, config.n_kv_heads, n, config.d_head)
         assert kv_cache[i].values.shape == (bs, config.n_kv_heads, n, config.d_head)
 
-    # x should match expected logits
-    assert_similar_arrays(x, logits)
 
-
-def test_forward_w_cache(
-    config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer, torch_device, reference_model: Transformer
+def test_forward_iterative(
+    config: ModelConfig,
+    params: ModelParameters,
+    tokenizer: Tokenizer,
+    torch_device,
+    reference_model: Transformer,
 ):
     #
     # Givens
