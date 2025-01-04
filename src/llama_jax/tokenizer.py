@@ -69,11 +69,15 @@ class Tokenizer:
             self.special_tokens["<|eot_id|>"],
         ]
 
-    def encode(self, prompts: Sequence[str], bos: bool | None = None, eos: bool | None = None) -> Array:
+    def encode(self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None) -> Array:
         """Encodes a list of prompts into an array of token IDs."""
         # Defaults
         bos = default_arg(bos, True)
         eos = default_arg(eos, False)
+
+        # Ensure prompts is a sequence of prompts
+        if isinstance(prompts, str):
+            prompts = (prompts,)
 
         # Encode each prompt
         token_ids = [
@@ -98,10 +102,10 @@ class Tokenizer:
 
         return jnp.array(token_ids)
 
-    def decode(self, token_ids: Array, strip_special: bool | None = None) -> Sequence[str]:
+    def decode(self, token_ids: Array, special: bool | None = None) -> Sequence[str]:
         """Decodes token_ids into sequence of strings."""
         # Defaults
-        strip_special = default_arg(strip_special, False)
+        special = default_arg(special, True)
 
         # Validate
         if token_ids.ndim != 2:
@@ -109,7 +113,7 @@ class Tokenizer:
 
         # Collect token ids to decode
         values = [
-            [tid.item() for tid in tids if (not strip_special) or (tid not in self.special_tokens.values())]
+            [tid.item() for tid in tids if special or tid not in self.special_tokens.values()]
             for tids in token_ids
         ]
 

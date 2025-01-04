@@ -63,15 +63,23 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
 def forward(
     config: ModelConfig,
     state: Model,
-    kv_cache: KVCache,
-    token_ids: Array,
-) -> tuple[Array, KVCache]:
-    """Transform token ids into next token logits."""
+    tokens: Array,
+    *,
+    kv_cache: KVCache | None = None,
+) -> Array | tuple[Array, KVCache]:
+    """Transform tokens into next token logits."""
+
+    # Remember if cache was provided
+    external_cache = kv_cache is not None
+
+    # Defaults
+    kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config))
+
     # Sanity check
-    assert token_ids.ndim == 2
+    assert tokens.ndim == 2
 
     # Query length = tokens length
-    query_length = token_ids.shape[-1]
+    query_length = tokens.shape[-1]
 
     # Sequence length = cache length + query length
     n = ll.kv_cache.length(kv_cache) + query_length
@@ -82,8 +90,8 @@ def forward(
     # Masked attention bias
     mask = ll.attention.attention_mask(query_length, config.dtype)
 
-    # Map token ids to embeddings
-    x = ll.embeddings.forward(config, state.embeddings, token_ids)
+    # Map tokens to embeddings
+    x = ll.embeddings.forward(config, state.embeddings, tokens)
 
     # Make kv caches mutable
     kvc = MutableKVCache(kv_cache)
@@ -98,18 +106,21 @@ def forward(
     # Apply head
     x = ll.head.forward(config, state.head, x)
 
-    return x, kv_cache
+    # Return updated cache if provided
+    if external_cache:
+        return x, kv_cache
+
+    return x
 
 
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def sample_tokens(
     logits: Array,
-    *,
-    key: Array | None = None,
+    key: Array,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
-) -> Array:
+) -> tuple[Array, Array]:
     """Select next token using temperature, top_p, and top_k sampling."""
     # Sanity check
     assert logits.ndim == 2
@@ -130,7 +141,7 @@ def sample_tokens(
 
     # If temperature is 0, return the top token
     if temperature == 0:
-        return jnp.argmax(logits, axis=value_axis, keepdims=True)
+        return jnp.argmax(logits, axis=value_axis, keepdims=True), key
 
     # Apply temperature
     logits = logits / temperature
@@ -157,7 +168,6 @@ def sample_tokens(
 
     # Random Selection
     # ----------------
-    assert key is not None
 
     # Sample from remaining tokens weighted by probability
     keys = random.split(key, n_batches + 1)
@@ -168,7 +178,7 @@ def sample_tokens(
     selected = jnp.reshape(selected, (*selected.shape, 1))
     next_token_id = jnp.take_along_axis(indices, selected, axis=value_axis)
 
-    return next_token_id
+    return next_token_id, key
 
 
 def sample_top_k(probs: Array, top_k: int | None = None) -> Array:

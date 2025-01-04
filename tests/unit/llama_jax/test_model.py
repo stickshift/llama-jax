@@ -39,7 +39,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
     assert isinstance(model.head, Head)
 
 
-def test_forward_single_pass(
+def test_forward(
     config: ModelConfig,
     params: ModelParameters,
     bs: int,
@@ -51,27 +51,63 @@ def test_forward_single_pass(
     # Givens
     #
 
+    # Expected logits
+    logits0 = logits
+
     # I created a Model
     model = ll.model.create(config, params)
-
-    # I created a key/value cache
-    kv_cache = ll.kv_cache.create(config)
 
     #
     # Whens
     #
 
-    # I transform token ids into logits
-    x, kv_cache = ll.model.forward(config, model, kv_cache, token_ids)
+    # I transform token_ids into logits
+    logits1 = ll.model.forward(config, model, token_ids)
 
     #
     # Thens
     #
 
-    # x should match expected logits
-    assert_similar_arrays(x, logits)
+    # logits1 should match expected logits0
+    assert_similar_arrays(logits1, logits0)
 
-    # kv_cache should be populated
+
+def test_forward_w_cache(
+    config: ModelConfig,
+    params: ModelParameters,
+    bs: int,
+    n: int,
+    token_ids: Array,
+    logits: Array,
+):
+    #
+    # Givens
+    #
+
+    # Expected logits
+    logits0 = logits
+
+    # I created a Model
+    model = ll.model.create(config, params)
+
+    #
+    # Whens
+    #
+
+    # I initialize key/value cache
+    kv_cache = ll.kv_cache.create(config)
+
+    # I transform token_ids into logits
+    logits1, kv_cache = ll.model.forward(config, model, token_ids, kv_cache=kv_cache)
+
+    #
+    # Thens
+    #
+
+    # logits1 should match expected logits0
+    assert_similar_arrays(logits1, logits0)
+
+    # cache should be populated
     for i in range(config.n_layers):
         assert kv_cache[i].keys.shape == (bs, config.n_kv_heads, n, config.d_head)
         assert kv_cache[i].values.shape == (bs, config.n_kv_heads, n, config.d_head)
@@ -249,58 +285,3 @@ def test_sample_tokens(config: ModelConfig, key: Array):
 
     # next_token_ids[1] should be 1
     assert next_token_ids[1][0] == 1
-
-
-def test_generate_wo_sampling(config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer):
-    #
-    # Givens
-    #
-
-    # I created a Model
-    model = ll.model.create(config, params)
-
-    # I created a key/value cache
-    kv_cache = ll.kv_cache.create(config)
-
-    # Sequence prompts
-    prompts = [
-        "A B C D",
-        "one two three four",
-    ]
-
-    # I split prompts into token ids
-    token_ids = tokenizer.encode(prompts)
-
-    #
-    # Whens
-    #
-
-    # I use entire sequence on first pass
-    x = token_ids
-
-    # I generate 5 tokens
-    for _ in range(5):
-        # Transform x into logits
-        logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
-
-        # Use most likely next token
-        next_token_id = jnp.argmax(logits, axis=-1, keepdims=True)
-
-        # Append next token
-        token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
-
-        # Use single token on subsequent passes
-        x = next_token_id
-
-    # I decode token_ids
-    text = tokenizer.decode(token_ids, strip_special=True)
-
-    #
-    # Thens
-    #
-
-    # text should be
-    assert text == (
-        "A B C D E F G H I",
-        "one two three four five six seven eight nine",
-    )
