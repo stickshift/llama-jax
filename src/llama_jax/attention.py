@@ -173,7 +173,7 @@ def forward(
     # Encode positions by rotating queries and keys.
     #   Note we use last q.shape[TOKEN_AXIS] to handle both full sequence and subset scenarios.
     k_positions = jnp.arange(k.shape[TOKEN_AXIS])
-    q_positions = k_positions[-q.shape[TOKEN_AXIS]:]
+    q_positions = k_positions[-q.shape[TOKEN_AXIS] :]
     q = ll.rope.rotate(rope, q, positions=q_positions)
     k = ll.rope.rotate(rope, k, positions=k_positions)
 

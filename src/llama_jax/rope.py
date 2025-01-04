@@ -6,7 +6,7 @@ from jax import Array
 from jax import numpy as jnp
 from jax.typing import ArrayLike
 
-from llama_jax.checkpoint import ModelConfig, TOKEN_AXIS, HEAD_AXIS, MODEL_AXIS, BATCH_AXIS
+from llama_jax.checkpoint import ModelConfig
 
 __all__ = [
     "Rope",
@@ -82,7 +82,6 @@ def rotate(rope: Rope, x: ArrayLike, positions: ArrayLike) -> Array:
     Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`
     is the position of the pair in the embedding vector.
     """
-
     # Select rope entries based on positions
     r_cos, r_sin = rope.cos[positions], rope.sin[positions]
 

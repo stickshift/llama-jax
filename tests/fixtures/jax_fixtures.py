@@ -1,12 +1,14 @@
 from time import time_ns
-from jax import Array, random, numpy as jnp
+
+from jax import Array, random
+from jax import numpy as jnp
 import pytest
 
 from llama_jax.tools import default_arg
 
 __all__ = [
-    "key",
     "assert_similar_arrays",
+    "key",
 ]
 
 

@@ -27,6 +27,10 @@ cli = [
     "torch>=2.5.1",
 ]
 
+benchmarks = [
+    "llama-models>=0.0.63",
+]
+
 #-------------------------------------------------------------------------------
 # Build System
 #-------------------------------------------------------------------------------
@@ -55,10 +59,8 @@ dev-dependencies = [
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.5",
     "jupyterlab>=4.3.2",
-    "llama-models>=0.0.63",
     "matplotlib>=3.9.3",
     "pytest-cov>=6.0.0",
     "pytest>=8.3.3",
     "python-dotenv>=1.0.1",
-    "transformers>=4.47.1",
 ]

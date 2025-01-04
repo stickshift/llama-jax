@@ -111,13 +111,12 @@ def test_rms_norm_scaling(config: ModelConfig, bs: int, n: int, key: Array):
 
 
 def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings: Array, attention_norm0: Array):
-
     #
     # Givens
     #
 
     # I created RMSNorm from layer 0 attention
-    norm = ll.rms_norm.create(config, params, f"layers.0.attention_norm")
+    norm = ll.rms_norm.create(config, params, "layers.0.attention_norm")
 
     # I initialize x from token embeddings
     x = token_embeddings

@@ -2,7 +2,7 @@ from jax import Array, random
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
-from llama_jax.kv_cache import LayerKVCache, MutableKVCache
+from llama_jax.kv_cache import LayerKVCache
 
 
 def test_apply(config: ModelConfig, params: ModelParameters, bs: int, key: Array, token_embeddings: Array):
@@ -72,7 +72,6 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, key: Array
 
 
 def test_length(config: ModelConfig, params: ModelParameters, n: int, token_embeddings: Array):
-
     #
     # Givens
     #

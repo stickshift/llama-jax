@@ -1,8 +1,8 @@
 import pytest
 
-from llama_jax.checkpoint import ModelConfig
 from llama_jax.benchmarks import llama_models as llm
 from llama_jax.benchmarks.llama_models import Transformer
+from llama_jax.checkpoint import ModelConfig
 
 __all__ = [
     "reference_model",

@@ -3,11 +3,10 @@
 from typing import NamedTuple
 
 from jax import Array
-from jax import numpy as jnp
 from jax.typing import ArrayLike
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, ModelParameters, TOKEN_AXIS
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.rms_norm import RMSNorm
 
 __all__ = [

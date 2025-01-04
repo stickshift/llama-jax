@@ -1,11 +1,10 @@
-import numpy as np
 from jax import Array, dlpack
-
+import numpy as np
 import torch
 
-from llama_jax.checkpoint import ModelConfig
 from llama_jax.benchmarks import llama_models as llm
 from llama_jax.benchmarks.llama_models import Transformer
+from llama_jax.checkpoint import ModelConfig
 from llama_jax.tokenizer import Tokenizer
 
 
@@ -66,7 +65,6 @@ def test_generate_wo_sampling(config: ModelConfig, torch_device, tokenizer: Toke
 
     # I generate 5 tokens
     for _ in range(5):
-
         # Transform token_ids into logits
         logits = transformer(token_ids)
 

@@ -1,5 +1,4 @@
 from jax import numpy as jnp
-import jax.dtypes
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig

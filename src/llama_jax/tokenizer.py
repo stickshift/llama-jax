@@ -109,10 +109,7 @@ class Tokenizer:
 
         # Collect token ids to decode
         values = [
-            [
-                tid.item()
-                for tid in tids if (not strip_special) or (tid not in self.special_tokens.values())
-            ]
+            [tid.item() for tid in tids if (not strip_special) or (tid not in self.special_tokens.values())]
             for tids in token_ids
         ]
 

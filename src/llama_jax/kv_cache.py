@@ -46,7 +46,6 @@ def apply(cached_values: ArrayLike | None, values: ArrayLike) -> Array:
 
 def length(kv_cache: KVCache | LayerKVCache) -> int:
     """Return number of entries in cache."""
-
     if not isinstance(kv_cache, LayerKVCache):
         kv_cache = kv_cache[0]
 

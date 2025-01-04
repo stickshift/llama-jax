@@ -1,10 +1,7 @@
-import numpy as np
-
-import pytest
-from jax import Array, random, dlpack
+from jax import Array, dlpack, random
 from jax import numpy as jnp
 from jax.nn import softmax
-
+import numpy as np
 import torch
 
 import llama_jax as ll
@@ -83,7 +80,9 @@ def test_forward(
     assert_similar_arrays(x, logits)
 
 
-def test_forward_w_cache(config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer, torch_device, reference_model: Transformer):
+def test_forward_w_cache(
+    config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer, torch_device, reference_model: Transformer
+):
     #
     # Givens
     #
@@ -280,7 +279,6 @@ def test_generate_wo_sampling(config: ModelConfig, params: ModelParameters, toke
 
     # I generate 5 tokens
     for _ in range(5):
-
         # Transform x into logits
         logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
 

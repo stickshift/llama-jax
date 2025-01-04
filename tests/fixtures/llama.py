@@ -1,21 +1,23 @@
 from jax import Array, dlpack
 from jax import numpy as jnp
+import numpy as np
 import pytest
 import torch
-import numpy as np
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, ModelParameters, TOKEN_AXIS
+from llama_jax.benchmarks.llama_models import Transformer
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.rope import Rope
 from llama_jax.tokenizer import Tokenizer
-from llama_jax.benchmarks.llama_models import Transformer
 
 __all__ = [
-    "bs",
-    "config",
-    "attention_norm0",
     "attention_0",
     "attention_n",
+    "attention_norm0",
+    "bs",
+    "config",
+    "ffn_0",
+    "ffn_n",
     "logits",
     "mask",
     "n",
@@ -24,8 +26,6 @@ __all__ = [
     "token_embeddings",
     "token_ids",
     "tokenizer",
-    "ffn_0",
-    "ffn_n",
 ]
 
 _prompts = [
@@ -122,9 +122,6 @@ def attention_norm0(
 
     # Load embeddings into torch
     x = torch.tensor(np.array(token_embeddings), device=torch_device)
-
-    # Preserve residuals
-    residuals = x
 
     # Normalize
     x = layer.attention_norm(x)
@@ -280,7 +277,7 @@ def ffn_n(
     start_pos = 0
     freqs_cis = reference_model.freqs_cis[:n]
     mask = torch.tensor(np.array(mask), device=torch_device)
-    for i, layer in enumerate(reference_model.layers):
+    for layer in reference_model.layers:
         # Attention
         x = x + layer.attention(layer.attention_norm(x), start_pos, freqs_cis, mask)
 

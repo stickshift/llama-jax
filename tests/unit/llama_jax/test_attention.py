@@ -9,6 +9,7 @@ from llama_jax.rope import Rope
 
 from tests.fixtures.jax_fixtures import assert_similar_arrays
 
+
 def test_factory():
     #
     # Givens

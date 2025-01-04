@@ -112,7 +112,6 @@ def sample_tokens(
     top_p: float | None = None,
 ) -> Array:
     """Select next token using temperature, top_p, and top_k sampling."""
-
     # Sanity check
     assert logits.ndim == 2
 
@@ -125,7 +124,7 @@ def sample_tokens(
 
     # Validate
     if key is None and temperature != 0:
-        raise ValueError(f"Key must be specified unless temperature is 0.")
+        raise ValueError("Key must be specified unless temperature is 0.")
 
     # Temperature
     # -----------
@@ -212,7 +211,6 @@ def sample_top_p(probs: ArrayLike, top_p: float | None = None) -> Array:
 @jax.vmap
 def select_index(probs: ArrayLike, key: ArrayLike) -> Array:
     """Randomly choose index weighted by probability."""
-
     # Redistribute probs
     probs = probs / jnp.sum(probs)
 
