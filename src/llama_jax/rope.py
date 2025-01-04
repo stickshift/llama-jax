@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 from jax import Array
 from jax import numpy as jnp
-from jax.typing import ArrayLike
 
 from llama_jax.checkpoint import ModelConfig
 
@@ -55,7 +54,7 @@ def create(config: ModelConfig, n: int) -> Rope:
     return Rope(cos=r_cos, sin=r_sin)
 
 
-def swap(x: ArrayLike) -> Array:
+def swap(x: Array) -> Array:
     """Maps [x0, x1, x2, x3] -> [-x1, x0, -x3, x2] along last dimension."""
     # Split last dimension into pairs
     y = jnp.reshape(x, (-1, 2))
@@ -76,7 +75,7 @@ def swap(x: ArrayLike) -> Array:
     return y
 
 
-def rotate(rope: Rope, x: ArrayLike, positions: ArrayLike) -> Array:
+def rotate(rope: Rope, x: Array, positions: Array) -> Array:
     """Rotate embeddings using RoPE transform.
 
     Each pair of values in x is rotated by `m*theta_i`, where m is the position of the embedding in the sequence and `i`

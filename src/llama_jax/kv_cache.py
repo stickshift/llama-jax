@@ -2,7 +2,6 @@ from typing import NamedTuple
 
 from jax import Array
 from jax import numpy as jnp
-from jax.typing import ArrayLike
 
 from llama_jax.checkpoint import ModelConfig
 
@@ -36,7 +35,7 @@ def create(config: ModelConfig) -> KVCache:
     return tuple(LayerKVCache() for _ in range(config.n_layers))
 
 
-def apply(cached_values: ArrayLike | None, values: ArrayLike) -> Array:
+def apply(cached_values: Array | None, values: Array) -> Array:
     """Add values to cache and return entire cache."""
     if cached_values is None:
         return values

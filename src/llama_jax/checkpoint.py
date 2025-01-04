@@ -5,7 +5,7 @@ from enum import Enum
 import json
 from pathlib import Path
 import pickle
-from typing import NamedTuple
+from typing import Any, NamedTuple, cast
 
 from jax import Array
 from jax import numpy as jnp
@@ -76,7 +76,7 @@ class ModelConfig(NamedTuple):
     training: TrainingLevel
 
 
-def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
+def load_config(checkpoint_name: str, **kwargs: Mapping[str, Any]) -> ModelConfig:
     """Load Llama3 config from checkpoint params.json."""
     # Build checkpoint_path
     checkpoints_path = Path("~/.llama/checkpoints").expanduser()
@@ -135,7 +135,7 @@ def load_parameters(config: ModelConfig) -> ModelParameters:
         )
 
     # Load state from checkpoint
-    params = pickle.loads(input_path.read_bytes())  # noqa
+    params = cast(ModelParameters, pickle.loads(input_path.read_bytes()))
 
     return params
 

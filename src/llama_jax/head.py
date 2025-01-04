@@ -3,7 +3,6 @@
 from typing import NamedTuple
 
 from jax import Array
-from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -40,7 +39,7 @@ def create(config: ModelConfig, params: ModelParameters) -> Head:
     )
 
 
-def forward(config: ModelConfig, state: Head, x: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: Head, x: Array) -> Array:
     """Transform embeddings into token logits."""
     # Normalize inputs
     x = ll.rms_norm.forward(config, state.norm, x)

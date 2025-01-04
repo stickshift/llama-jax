@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 from jax import Array
 from jax.nn import silu
-from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -46,7 +45,7 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> FFN:
     )
 
 
-def forward(config: ModelConfig, state: FFN, x: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: FFN, x: Array) -> Array:
     """Transform x using feedforward network (FFN)."""
     # Sanity check
     assert x.ndim == 3

@@ -13,9 +13,6 @@ export JUPYTER_CONFIG_DIR=${PROJECT_ROOT}/.build/jupyter
 export JUPYTER_DATA_DIR=${JUPYTER_CONFIG_DIR}
 export JUPYTER_PLATFORM_DIRS=1
 
-# Jax
-export JAX_LOG_COMPILES=1
-
 # Set mtimes to timestamp of latest commit if project has git repo
 if [[ -d .git ]]; then
   export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
@@ -34,7 +31,6 @@ project_variables=(
   JUPYTER_CONFIG_DIR
   JUPYTER_DATA_DIR
   JUPYTER_PLATFORM_DIRS
-  JAX_LOG_COMPILES
   SOURCE_DATE_EPOCH
 )
 

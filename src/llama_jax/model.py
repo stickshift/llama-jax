@@ -8,7 +8,6 @@ import jax
 from jax import Array, random
 from jax import numpy as jnp
 from jax.nn import softmax
-from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -65,7 +64,7 @@ def forward(
     config: ModelConfig,
     state: Model,
     kv_cache: KVCache,
-    token_ids: ArrayLike,
+    token_ids: Array,
 ) -> tuple[Array, KVCache]:
     """Transform token ids into next token logits."""
     # Sanity check
@@ -87,14 +86,14 @@ def forward(
     x = ll.embeddings.forward(config, state.embeddings, token_ids)
 
     # Make kv caches mutable
-    kv_cache = MutableKVCache(kv_cache)
+    kvc = MutableKVCache(kv_cache)
 
     # Apply layers
     for i, layer in enumerate(state.layers):
-        x, kv_cache[i] = ll.layer.forward(config, layer, rope, mask, kv_cache[i], x)
+        x, kvc[i] = ll.layer.forward(config, layer, rope, mask, kvc[i], x)
 
     # Convert kv caches back into immutable sequence
-    kv_cache = KVCache(kv_cache)
+    kv_cache = KVCache(kvc)
 
     # Apply head
     x = ll.head.forward(config, state.head, x)
@@ -104,9 +103,9 @@ def forward(
 
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def sample_tokens(
-    logits: ArrayLike,
+    logits: Array,
     *,
-    key: ArrayLike | None = None,
+    key: Array | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
@@ -158,6 +157,7 @@ def sample_tokens(
 
     # Random Selection
     # ----------------
+    assert key is not None
 
     # Sample from remaining tokens weighted by probability
     keys = random.split(key, n_batches + 1)
@@ -171,7 +171,7 @@ def sample_tokens(
     return next_token_id
 
 
-def sample_top_k(probs: ArrayLike, top_k: int | None = None) -> Array:
+def sample_top_k(probs: Array, top_k: int | None = None) -> Array:
     # Defaults
     top_k = default_arg(top_k, 50)
 
@@ -184,7 +184,7 @@ def sample_top_k(probs: ArrayLike, top_k: int | None = None) -> Array:
     return probs
 
 
-def sample_top_p(probs: ArrayLike, top_p: float | None = None) -> Array:
+def sample_top_p(probs: Array, top_p: float | None = None) -> Array:
     # Defaults
     top_p = default_arg(top_p, 0.9)
 
@@ -209,7 +209,7 @@ def sample_top_p(probs: ArrayLike, top_p: float | None = None) -> Array:
 
 
 @jax.vmap
-def select_index(probs: ArrayLike, key: ArrayLike) -> Array:
+def select_index(probs: Array, key: Array) -> Array:
     """Randomly choose index weighted by probability."""
     # Redistribute probs
     probs = probs / jnp.sum(probs)

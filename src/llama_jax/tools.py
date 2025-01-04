@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
-from typing import Callable
+from typing import Callable, cast
 
 __all__ = [
     "default_arg",
@@ -10,10 +10,10 @@ __all__ = [
 
 
 def default_arg[T](
-    v: T,
+    v: T | None,
     default: T | None = None,
     default_factory: Callable[[], T] | None = None,
-):
+) -> T:
     """Populate default parameters."""
     if v is not None:
         return v
@@ -21,7 +21,7 @@ def default_arg[T](
     if default is None and default_factory is not None:
         return default_factory()
 
-    return default
+    return cast(T, default)
 
 
 def shell(command: str) -> str:

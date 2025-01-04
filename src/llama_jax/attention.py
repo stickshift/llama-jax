@@ -5,7 +5,7 @@ from typing import NamedTuple
 from jax import Array
 from jax import numpy as jnp
 from jax.nn import softmax
-from jax.typing import ArrayLike, DTypeLike
+from jax.typing import DTypeLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import HEAD_AXIS, MODEL_AXIS, TOKEN_AXIS, ModelConfig, ModelParameters
@@ -76,7 +76,7 @@ def attention_mask(n: int, dtype: DTypeLike) -> Array:
     return m.astype(dtype)
 
 
-def split_heads(x: ArrayLike, n_heads: int) -> Array:
+def split_heads(x: Array, n_heads: int) -> Array:
     """Split attention heads.
 
     Args:
@@ -135,9 +135,9 @@ def forward(
     config: ModelConfig,
     state: Attention,
     rope: Rope,
-    mask: ArrayLike,
+    mask: Array,
     kv_cache: LayerKVCache,
-    x: ArrayLike,
+    x: Array,
 ) -> tuple[Array, LayerKVCache]:
     """Transform x using grouped query attention (GQA)."""
     # Sanity check

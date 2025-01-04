@@ -4,8 +4,7 @@ from collections.abc import Iterator, Sequence
 from functools import partial
 from typing import Callable
 
-from jax import random
-from jax.typing import ArrayLike
+from jax import Array, random
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
@@ -21,7 +20,7 @@ __all__ = [
 def generator(
     config: ModelConfig,
     *,
-    key: ArrayLike,
+    key: Array,
     model: Model | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
@@ -57,7 +56,7 @@ def _generate(
     *,
     config: ModelConfig,
     tokenizer: Tokenizer,
-    key: ArrayLike,
+    key: Array,
     model: Model,
     temperature: float | None,
     top_k: int | None,

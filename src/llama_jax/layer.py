@@ -3,7 +3,6 @@
 from typing import NamedTuple
 
 from jax import Array
-from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.attention import Attention
@@ -42,9 +41,9 @@ def forward(
     config: ModelConfig,
     state: Layer,
     rope: Rope,
-    mask: ArrayLike,
+    mask: Array,
     kv_cache: LayerKVCache,
-    x: ArrayLike,
+    x: Array,
 ) -> tuple[Array, LayerKVCache]:
     """Transform x using attention and feedforward network."""
     # Sanity check

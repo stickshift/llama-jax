@@ -2,6 +2,7 @@ from jax import Array, random
 import jax.numpy as jnp
 from pytest import approx
 
+
 def test_array():
     #
     # Givens

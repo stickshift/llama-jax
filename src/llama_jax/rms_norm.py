@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 from jax import Array
 import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 
@@ -26,7 +25,7 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> RMSNorm:
     return RMSNorm(weight=params[f"{path}.weight"].astype(config.dtype))
 
 
-def forward(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: RMSNorm, x: Array) -> Array:
     """Normalize x using RMS Normalization.
 
     See https://doi.org/10.48550/arXiv.1910.07467
@@ -37,7 +36,7 @@ def forward(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
     return state.weight * _norm(config, state, x)
 
 
-def _norm(config: ModelConfig, state: RMSNorm, x: ArrayLike) -> Array:
+def _norm(config: ModelConfig, state: RMSNorm, x: Array) -> Array:
     """Calculate normalizing factor.
 
     See https://doi.org/10.48550/arXiv.1910.07467

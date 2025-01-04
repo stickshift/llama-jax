@@ -1,6 +1,5 @@
 from collections.abc import Sequence
-import os
-from os import PathLike
+from pathlib import Path
 
 from jax import Array
 from jax import numpy as jnp
@@ -40,8 +39,9 @@ _pat_str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?
 class Tokenizer:
     """Llama3 tokenizer based on tiktoken and the llama-models implementation."""
 
-    def __init__(self, model_path: PathLike):
-        model_path = os.fspath(model_path)
+    def __init__(self, model_path: Path | str):
+        # Convert to str
+        model_path = str(model_path)
 
         # Load base tokens from tiktoken model
         mergeable_ranks = load_tiktoken_bpe(model_path)

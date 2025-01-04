@@ -12,7 +12,7 @@ __all__ = [
 
 
 @click.group("llama-jax")
-def cli():
+def cli() -> None:
     """Llama JAX CLI."""
     pass
 
@@ -22,7 +22,7 @@ def cli():
     "checkpoint",
     type=str,
 )
-def convert_checkpoint(checkpoint: str):
+def convert_checkpoint(checkpoint: str) -> None:
     """Convert Llama checkpoint to JAX."""
     import torch  # noqa: PLC0415
 
