@@ -21,6 +21,7 @@ __all__ = [
     "Model",
     "create",
     "forward",
+    "next_token",
 ]
 
 
@@ -68,7 +69,6 @@ def forward(
     kv_cache: KVCache | None = None,
 ) -> Array | tuple[Array, KVCache]:
     """Transform tokens into next token logits."""
-
     # Remember if cache was provided
     external_cache = kv_cache is not None
 
@@ -114,20 +114,37 @@ def forward(
 
 
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
-def sample_tokens(
+def next_token(
     logits: Array,
     key: Array,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
 ) -> tuple[Array, Array]:
-    """Select next token using temperature, top_p, and top_k sampling."""
-    # Sanity check
-    assert logits.ndim == 2
+    """Select next token using temperature, top_p, and top_k sampling.
 
-    # Axes - logits shape: (bs, vocab_size)
+    Sample tokens from a probability distribution, allowing control over randomness and diversity using the
+    temperature, top-k, and top-p parameters.
+
+    Args:
+        logits (Array): Next token logits.
+        key (Array): RNG key.
+        temperature (float): (Optional) The sampling temperature. Higher values (e.g., 1.0) increase randomness, while
+            lower values (e.g., 0.1) make output more deterministic. If set to 0, random sampling is disabled and the
+            top scoring token is always returned. Defaults to 0.6.
+        top_k (int): (Optional) The number of top tokens to consider during sampling. Defaults to 50.
+        top_p (float): (Optional) The cumulative probability threshold for nucleus sampling. Only tokens within the top
+            cumulative probability of `top_p` are considered. Defaults to 0.9.
+
+    Returns:
+        tuple[Array, Array]: Tuple with next token and fresh rng key (next_token, key).
+    """
+    # Validate
+    if logits.ndim != 2:
+        raise ValueError(f"Unexpected logits shape {logits.shape}. Expected (bs, vocab_size).")
+
+    # Axes
     batch_axis, value_axis = 0, 1
-    n_batches = logits.shape[batch_axis]
 
     # Defaults
     temperature = default_arg(temperature, 0.6)
@@ -159,20 +176,22 @@ def sample_tokens(
     # Top K
     # -----
 
-    probs = sample_top_k(probs, top_k=top_k)
+    probs = _sample_top_k(probs, top_k=top_k)
 
     # Top P
     # -----
 
-    probs = sample_top_p(probs, top_p=top_p)
+    probs = _sample_top_p(probs, top_p=top_p)
 
     # Random Selection
     # ----------------
 
-    # Sample from remaining tokens weighted by probability
-    keys = random.split(key, n_batches + 1)
+    # Create separate keys for each batch
+    keys = random.split(key, logits.shape[batch_axis] + 1)
     key, subkeys = keys[0], keys[1:]
-    selected = select_index(probs, key=subkeys)
+
+    # Sample from remaining tokens weighted by probability
+    selected = _select_index(probs, key=subkeys)
 
     # Convert selected index to original logits
     selected = jnp.reshape(selected, (*selected.shape, 1))
@@ -181,24 +200,28 @@ def sample_tokens(
     return next_token_id, key
 
 
-def sample_top_k(probs: Array, top_k: int | None = None) -> Array:
+def _sample_top_k(probs: Array, top_k: int | None = None) -> Array:
     # Defaults
     top_k = default_arg(top_k, 50)
+
+    # Sanity check: probs is batched
+    assert probs.ndim == 2
+
+    # If there are less than top_k tokens, we're done
+    if probs.shape[-1] <= top_k:
+        return probs
 
     # Retain top k tokens
     probs = probs[..., :top_k]
 
-    # Sanity check
-    assert probs.shape[-1] == top_k
-
     return probs
 
 
-def sample_top_p(probs: Array, top_p: float | None = None) -> Array:
+def _sample_top_p(probs: Array, top_p: float | None = None) -> Array:
     # Defaults
     top_p = default_arg(top_p, 0.9)
 
-    # Sanity check
+    # Sanity check: probs is batched
     assert probs.ndim == 2
 
     # Axes: (bs, vocab_size)
@@ -219,7 +242,7 @@ def sample_top_p(probs: Array, top_p: float | None = None) -> Array:
 
 
 @jax.vmap
-def select_index(probs: Array, key: Array) -> Array:
+def _select_index(probs: Array, key: Array) -> Array:
     """Randomly choose index weighted by probability."""
     # Redistribute probs
     probs = probs / jnp.sum(probs)

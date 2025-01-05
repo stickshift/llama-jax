@@ -295,7 +295,7 @@ def ffn_n(
 
 
 @pytest.fixture(scope="session")
-def logits(config: ModelConfig, bs: int, torch_device, reference_model: Transformer) -> Array:
+def logits(config: ModelConfig, bs: int, n: int, torch_device, reference_model: Transformer) -> Array:
     """Sample output logits."""
 
     # Load token ids into torch
@@ -307,11 +307,8 @@ def logits(config: ModelConfig, bs: int, torch_device, reference_model: Transfor
     # Convert logits from torch to jax
     x = dlpack.from_dlpack(x.cpu())
 
-    # Only keep logits for last embedding
-    x = x[:, -1]
-
     # Sanity check
-    assert x.shape == (bs, config.vocab_size)
+    assert x.shape == (bs, n, config.vocab_size)
 
     return x
 

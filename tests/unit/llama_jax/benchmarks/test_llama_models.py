@@ -76,7 +76,7 @@ def test_generate_wo_sampling(config: ModelConfig, torch_device, tokenizer: Toke
 
     # I decode token_ids
     token_ids = dlpack.from_dlpack(token_ids.cpu())
-    text = tokenizer.decode(token_ids, strip_special=True)
+    text = tokenizer.decode(token_ids, special=False)
 
     #
     # Thens

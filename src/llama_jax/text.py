@@ -4,7 +4,7 @@ from collections.abc import Iterator, Sequence
 from functools import partial
 from typing import Callable
 
-from jax import Array, random
+from jax import Array
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
@@ -76,11 +76,10 @@ def _generate(
     # Sample up to max tokens
     for _ in range(max_tokens):
         # Transform x into logits
-        logits, kv_cache = ll.model.forward(config, model, kv_cache, x)
+        logits, kv_cache = ll.model.forward(config, model, x, kv_cache=kv_cache)
 
         # Sample next token
-        key, subkey = random.split(key)
-        next_token_id = ll.model.sample_tokens(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
+        next_token_id, key = ll.model.next_token(logits, key, temperature=temperature, top_k=top_k, top_p=top_p)
 
         # Break on stop tokens
         if all(v in tokenizer.stop_tokens for v in next_token_id.flatten()):
