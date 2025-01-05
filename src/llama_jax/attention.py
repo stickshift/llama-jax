@@ -195,7 +195,7 @@ def forward(
     k = ll.rope.rotate(rope, k, positions=k_positions)
 
     # Generate (q, k) mask bias term
-    m = mask[(n_keys - n_queries):n_keys, :n_keys]
+    m = mask[(n_keys - n_queries) : n_keys, :n_keys]
 
     # Compute attention for all heads in parallel
     x = attention(config, q, k, v, m)

@@ -61,14 +61,14 @@ def recursive_tuple(x):
     return tuple(recursive_tuple(v) if isinstance(v, list) else v for v in x)
 
 
-def trace[**P, R](logger: Logger, log_level: int | None = None) -> Callable[P, R]:
+def trace[**P, R](logger: Logger, log_level: int | None = None) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorate function with time instrumentation."""
     # Defaults
     log_level = default_arg(log_level, logging.DEBUG)
 
     def decorator(f: Callable[P, R]) -> Callable[P, R]:
         @wraps(f)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             start_time = timer()
 
             try:

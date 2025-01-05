@@ -1,8 +1,8 @@
 """Llama Model."""
 
-import logging
 from collections.abc import Sequence
 from functools import partial
+import logging
 from typing import NamedTuple
 
 import jax
@@ -27,6 +27,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
 
 class Model(NamedTuple):
     """Model state."""
@@ -119,7 +120,6 @@ def forward(
     return x
 
 
-@trace(logger)
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def next_token(
     logits: Array,
