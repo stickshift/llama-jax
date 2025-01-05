@@ -42,8 +42,6 @@ def test_factory(config: ModelConfig, params: ModelParameters):
 def test_forward_full_sequence(
     config: ModelConfig,
     params: ModelParameters,
-    bs: int,
-    n: int,
     token_ids: Array,
     logits: Array,
 ):
@@ -77,7 +75,6 @@ def test_forward_full_sequence(
 def test_forward_incremental(
     config: ModelConfig,
     params: ModelParameters,
-    bs: int,
     n: int,
     token_ids: Array,
     logits: Array,

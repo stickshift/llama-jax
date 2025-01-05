@@ -11,7 +11,9 @@ from jax import Array
 from jax import numpy as jnp
 from jax.typing import DTypeLike
 
-from .tokenizer import Tokenizer
+import llama_jax as ll
+from llama_jax.tokenizer import Tokenizer
+from llama_jax.tools import recursive_tuple
 
 __all__ = [
     "BATCH_AXIS",
@@ -48,10 +50,15 @@ class TrainingLevel(str, Enum):
     INSTRUCT = "instruct"
 
 
+Tuple2D = tuple[tuple[float, ...]]
+
+
 class ModelConfig(NamedTuple):
     """Llama3 model config."""
 
     checkpoint_path: Path
+
+    max_tokens: int
 
     vocab_size: int
 
@@ -69,14 +76,20 @@ class ModelConfig(NamedTuple):
 
     rms_norm_eps: float
 
-    rope_theta: float
-
     dtype: DTypeLike
 
     training: TrainingLevel
 
+    rope_theta: float
 
-def load_config(checkpoint_name: str, **kwargs: Mapping[str, Any]) -> ModelConfig:
+    rope_cos: Tuple2D
+
+    rope_sin: Tuple2D
+
+    mask: Tuple2D
+
+
+def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
     """Load Llama3 config from checkpoint params.json."""
     # Build checkpoint_path
     checkpoints_path = Path("~/.llama/checkpoints").expanduser()
@@ -85,6 +98,10 @@ def load_config(checkpoint_name: str, **kwargs: Mapping[str, Any]) -> ModelConfi
     # Validate
     if not checkpoint_path.is_dir():
         raise ValueError(f"Checkpoint not found: {checkpoint_path}")
+
+    # Defaults
+    max_tokens = 512
+    dtype = jnp.float32
 
     # Load hyperparameters
     hparams_path = checkpoint_path / "params.json"
@@ -99,6 +116,7 @@ def load_config(checkpoint_name: str, **kwargs: Mapping[str, Any]) -> ModelConfi
 
     data = {
         "checkpoint_path": checkpoint_path,
+        "max_tokens": max_tokens,
         "vocab_size": hparams["vocab_size"],
         "d_model": hparams["dim"],
         "n_layers": hparams["n_layers"],
@@ -108,12 +126,23 @@ def load_config(checkpoint_name: str, **kwargs: Mapping[str, Any]) -> ModelConfi
         "n_kv_heads": hparams["n_kv_heads"],
         "rope_theta": hparams["rope_theta"],
         "d_ffn": d_ffn,
-        "dtype": jnp.float32,
+        "dtype": dtype,
         "training": TrainingLevel.INSTRUCT if checkpoint_name.endswith("-Instruct") else TrainingLevel.PRETRAINED,
     }
 
     # Override with kwargs
     data |= kwargs
+
+    # Spin rope
+    data["rope_cos"], data["rope_sin"] = ll.rope.rotation_matrices(
+        data["rope_theta"],
+        data["d_head"],
+        data["dtype"],
+        data["max_tokens"],
+    )
+
+    # Generate mask
+    data["mask"] = _attention_mask(data["max_tokens"], data["dtype"])
 
     return ModelConfig(**data)
 
@@ -149,3 +178,29 @@ def load_tokenizer(config: ModelConfig) -> Tokenizer:
     """Load tokenizer from checkpoint."""
     # Load tiktoken model
     return Tokenizer(config.checkpoint_path / "tokenizer.model")
+
+
+# ------------------------------------------------------------------------------
+# Utilities
+# ------------------------------------------------------------------------------
+
+
+def _attention_mask(n: int, dtype: DTypeLike) -> Tuple2D:
+    """Compute reusable masked attention bias term M.
+
+    Returns:
+        Tuple2D: (n, n) diagonal matrix w/ upper triangular elements set to -inf, 0 otherwise.
+    """
+    # Create boolean mask w/ main diagonal and below set to False
+    mask = ~jnp.tril(jnp.ones((n, n), dtype=jnp.bool_))
+
+    # Apply mask to fill array with -inf, 0 otherwise
+    m = jnp.where(mask, -jnp.inf, 0)
+
+    # Apply dtype
+    m = m.astype(dtype)
+
+    # Convert to hashable tuple
+    m = recursive_tuple(m.tolist())
+
+    return cast(Tuple2D, m)

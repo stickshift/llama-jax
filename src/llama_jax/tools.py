@@ -1,10 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
-from typing import Callable, cast
+from typing import Callable, cast, no_type_check
 
 __all__ = [
     "default_arg",
     "executor",
+    "recursive_tuple",
     "shell",
 ]
 
@@ -47,3 +48,9 @@ def executor() -> ThreadPoolExecutor:
     if _executor is None:
         _executor = ThreadPoolExecutor()
     return _executor
+
+
+@no_type_check
+def recursive_tuple(x):
+    """Convert list to tuple recursively."""
+    return tuple(recursive_tuple(v) if isinstance(v, list) else v for v in x)

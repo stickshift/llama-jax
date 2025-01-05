@@ -1,12 +1,10 @@
 from tests.fixtures.jax_fixtures import key
 from tests.fixtures.llama import (
-    attention_0,
-    attention_n,
     attention_norm0,
+    attention_output,
     bs,
     config,
-    ffn_0,
-    ffn_n,
+    ffn_output,
     logits,
     mask,
     n,
@@ -29,15 +27,13 @@ from tests.fixtures.workspace import (
 )
 
 __all__ = [
-    "attention_0",
-    "attention_n",
     "attention_norm0",
+    "attention_output",
     "bs",
     "build_path",
     "config",
     "datasets_path",
-    "ffn_0",
-    "ffn_n",
+    "ffn_output",
     "key",
     "log_levels",
     "logits",

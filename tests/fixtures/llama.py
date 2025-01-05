@@ -11,13 +11,11 @@ from llama_jax.rope import Rope
 from llama_jax.tokenizer import Tokenizer
 
 __all__ = [
-    "attention_0",
-    "attention_n",
     "attention_norm0",
+    "attention_output",
     "bs",
     "config",
-    "ffn_0",
-    "ffn_n",
+    "ffn_output",
     "logits",
     "mask",
     "n",
@@ -137,7 +135,7 @@ def attention_norm0(
 
 
 @pytest.fixture(scope="session")
-def attention_0(
+def attention_output(
     config: ModelConfig,
     bs: int,
     n: int,
@@ -178,61 +176,19 @@ def attention_0(
 
 
 @pytest.fixture(scope="session")
-def attention_n(
-    config: ModelConfig,
-    bs: int,
-    n: int,
-    mask: Array,
-    torch_device,
-    reference_model: Transformer,
-    token_embeddings: Array,
-) -> Array:
-    """Sample attention outputs for last layer."""
-
-    layer = reference_model.layers[0]
-
-    # Load embeddings into torch
-    x = torch.tensor(np.array(token_embeddings), device=torch_device)
-
-    # Layers
-    start_pos = 0
-    freqs_cis = reference_model.freqs_cis[:n]
-    mask = torch.tensor(np.array(mask), device=torch_device)
-    for i, layer in enumerate(reference_model.layers):
-        # Attention
-        x = x + layer.attention(layer.attention_norm(x), start_pos, freqs_cis, mask)
-
-        # Bail on last layer
-        if i == config.n_layers - 1:
-            break
-
-        # FFN
-        x = x + layer.feed_forward(layer.ffn_norm(x))
-
-    # Convert from torch to jax
-    x = dlpack.from_dlpack(x.cpu())
-
-    # Sanity check
-    assert x.shape == (bs, n, config.d_model)
-    assert x.dtype == config.dtype
-
-    return x
-
-
-@pytest.fixture(scope="session")
-def ffn_0(
+def ffn_output(
     config: ModelConfig,
     bs: int,
     n: int,
     torch_device,
     reference_model: Transformer,
-    attention_0: Array,
+    attention_output: Array,
 ) -> Array:
     """Sample ffn outputs for layer 0."""
     layer = reference_model.layers[0]
 
     # Load attention values into torch
-    x = torch.tensor(np.array(attention_0), device=torch_device)
+    x = torch.tensor(np.array(attention_output), device=torch_device)
 
     # Preserve residuals
     residuals = x
@@ -245,44 +201,6 @@ def ffn_0(
 
     # Merge residuals
     x = residuals + x
-
-    # Convert from torch to jax
-    x = dlpack.from_dlpack(x.cpu())
-
-    # Sanity check
-    assert x.shape == (bs, n, config.d_model)
-    assert x.dtype == config.dtype
-
-    return x
-
-
-@pytest.fixture(scope="session")
-def ffn_n(
-    config: ModelConfig,
-    bs: int,
-    n: int,
-    mask: Array,
-    torch_device,
-    reference_model: Transformer,
-    token_embeddings: Array,
-) -> Array:
-    """Sample ffn outputs for last layer."""
-
-    layer = reference_model.layers[0]
-
-    # Load embeddings into torch
-    x = torch.tensor(np.array(token_embeddings), device=torch_device)
-
-    # Layers
-    start_pos = 0
-    freqs_cis = reference_model.freqs_cis[:n]
-    mask = torch.tensor(np.array(mask), device=torch_device)
-    for layer in reference_model.layers:
-        # Attention
-        x = x + layer.attention(layer.attention_norm(x), start_pos, freqs_cis, mask)
-
-        # FFN
-        x = x + layer.feed_forward(layer.ffn_norm(x))
 
     # Convert from torch to jax
     x = dlpack.from_dlpack(x.cpu())
@@ -324,4 +242,4 @@ def rope(config: ModelConfig, n: int) -> Rope:
 def mask(config: ModelConfig, n: int) -> Array:
     """Causal attention mask."""
 
-    return ll.attention.attention_mask(n, config.dtype)
+    return ll.attention.attention_mask(config, n)

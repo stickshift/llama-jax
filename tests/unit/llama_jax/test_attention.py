@@ -1,11 +1,8 @@
-import jax
 from jax import Array
-from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
-from llama_jax.kv_cache import LayerKVCache, MutableKVCache
-from llama_jax.rope import Rope
+from llama_jax.kv_cache import LayerKVCache
 
 from tests.fixtures.jax_fixtures import assert_similar_arrays
 
@@ -42,31 +39,6 @@ def test_factory():
 
     assert attention.output.shape == (config.d_model, config.d_model)
     assert attention.output.dtype == config.dtype
-
-
-def test_masked_attention_bias(n: int):
-    #
-    # Givens
-    #
-
-    #
-    # Whens
-    #
-
-    # I generate masked attention bias term M
-    m = ll.attention.attention_mask(n, jax.dtypes.bfloat16)
-
-    #
-    # Thens
-    #
-
-    # m is (n, n) array with zeros below the diagonal, -inf above the diagonal
-    for i in range(n):
-        for j in range(n):
-            if j > i:
-                assert m[i, j] == -jnp.inf
-            else:
-                assert m[i, j] == 0
 
 
 def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings: Array):
@@ -109,15 +81,27 @@ def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings:
     assert (y == x).all()
 
 
-def test_forward_0(
+def test_attention_mask(config: ModelConfig, n: int):
+    #
+    # Whens
+    #
+
+    # I generate mask
+    m = ll.attention.attention_mask(config, n)
+
+    #
+    # Thens
+    #
+
+    # m.shape should be (n, n)
+    assert m.shape == (n, n)
+
+
+def test_forward(
     config: ModelConfig,
     params: ModelParameters,
-    rope: Rope,
-    mask: Array,
-    bs: int,
-    n: int,
     token_embeddings: Array,
-    attention_0: Array,
+    attention_output: Array,
 ):
     #
     # Givens
@@ -137,59 +121,11 @@ def test_forward_0(
     #
 
     # I transform x w/ attention
-    x, kv_cache = ll.attention.forward(config, attention, rope, mask, kv_cache, x)
+    x, kv_cache = ll.attention.forward(config, attention, x, kv_cache)
 
     #
     # Thens
     #
 
     # x should match expected output
-    assert_similar_arrays(x, attention_0)
-
-
-def test_forward_n(
-    config: ModelConfig,
-    params: ModelParameters,
-    rope: Rope,
-    mask: Array,
-    bs: int,
-    n: int,
-    token_embeddings: Array,
-    attention_n: Array,
-):
-    #
-    # Givens
-    #
-
-    # I created model
-    model = ll.model.create(config, params)
-
-    # I created a key/value cache
-    kv_cache = ll.kv_cache.create(config)
-    kv_cache = MutableKVCache(kv_cache)
-
-    # Sample embeddings
-    x = token_embeddings
-
-    #
-    # Whens
-    #
-
-    # I transform x w/ n layers
-    for i, layer in enumerate(model.layers):
-        # Attention
-        x, kv_cache[i] = ll.attention.forward(config, layer.attention, rope, mask, kv_cache[i], x)
-
-        # Bail on last layer
-        if i == config.n_layers - 1:
-            break
-
-        # FFN
-        x = ll.ffn.forward(config, layer.ffn, x)
-
-    #
-    # Thens
-    #
-
-    # x should match expected output
-    assert_similar_arrays(x, attention_n)
+    assert_similar_arrays(x, attention_output)

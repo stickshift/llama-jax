@@ -78,27 +78,15 @@ def forward(
     # Sanity check
     assert tokens.ndim == 2
 
-    # Query length = tokens length
-    query_length = tokens.shape[-1]
-
-    # Sequence length = cache length + query length
-    n = ll.kv_cache.length(kv_cache) + query_length
-
-    # RoPE rotation matrices
-    rope = ll.rope.create(config, n)
-
-    # Masked attention bias
-    mask = ll.attention.attention_mask(query_length, config.dtype)
-
     # Map tokens to embeddings
     x = ll.embeddings.forward(config, state.embeddings, tokens)
 
-    # Make kv caches mutable
+    # Create mutable kv cache
     kvc = MutableKVCache(kv_cache)
 
     # Apply layers
     for i, layer in enumerate(state.layers):
-        x, kvc[i] = ll.layer.forward(config, layer, rope, mask, kvc[i], x)
+        x, kvc[i] = ll.layer.forward(config, layer, x, kvc[i])
 
     # Convert kv caches back into immutable sequence
     kv_cache = KVCache(kvc)

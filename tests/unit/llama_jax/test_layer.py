@@ -5,7 +5,6 @@ from llama_jax.attention import Attention
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
 from llama_jax.kv_cache import LayerKVCache
-from llama_jax.rope import Rope
 
 
 def test_factory(config: ModelConfig, params: ModelParameters):
@@ -25,7 +24,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
     assert isinstance(layer.ffn, FFN)
 
 
-def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings: Array, rope: Rope, mask: Array):
+def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings: Array):
     #
     # Givens
     #
@@ -44,7 +43,7 @@ def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings:
     #
 
     # I transform x w/ layer
-    y, kv_cache = ll.layer.forward(config, layer, rope, mask, kv_cache, x)
+    y, kv_cache = ll.layer.forward(config, layer, x, kv_cache)
 
     #
     # Thens

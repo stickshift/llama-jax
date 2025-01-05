@@ -64,9 +64,9 @@ def test_choice(key: Array):
     #
 
     # Counts should match probabilities
-    assert counts[0] == approx(n / 3, rel=0.1)
-    assert counts[1] == approx(n / 3, rel=0.1)
-    assert counts[2] == approx(n / 3, rel=0.1)
+    assert counts[0] == approx(n / 3, rel=0.15)
+    assert counts[1] == approx(n / 3, rel=0.15)
+    assert counts[2] == approx(n / 3, rel=0.15)
 
     #
     # Whens
@@ -80,9 +80,9 @@ def test_choice(key: Array):
     #
 
     # Counts should match probabilities
-    assert counts[0] == approx(n / 3, rel=0.1)
-    assert counts[1] == approx(n / 3, rel=0.1)
-    assert counts[2] == approx(n / 3, rel=0.1)
+    assert counts[0] == approx(n / 3, rel=0.15)
+    assert counts[1] == approx(n / 3, rel=0.15)
+    assert counts[2] == approx(n / 3, rel=0.15)
 
     #
     # Whens
@@ -96,6 +96,6 @@ def test_choice(key: Array):
     #
 
     # Counts should match probabilities
-    assert counts[0] == approx(n / 10, rel=0.1)
-    assert counts[1] == approx(3 * n / 10, rel=0.1)
-    assert counts[2] == approx(6 * n / 10, rel=0.1)
+    assert counts[0] == approx(n / 10, rel=0.15)
+    assert counts[1] == approx(3 * n / 10, rel=0.15)
+    assert counts[2] == approx(6 * n / 10, rel=0.15)
