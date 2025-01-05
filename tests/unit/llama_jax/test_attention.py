@@ -3,19 +3,12 @@ from jax import Array
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.kv_cache import LayerKVCache
+from llama_jax.rope import Rope
 
 from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -87,19 +80,21 @@ def test_attention_mask(config: ModelConfig, n: int):
     #
 
     # I generate mask
-    m = ll.attention.attention_mask(config, n)
+    m = ll.attention.attention_mask(config)
 
     #
     # Thens
     #
 
-    # m.shape should be (n, n)
-    assert m.shape == (n, n)
+    # m should be populated (max_tokens, max_tokens) w/ with zeros below the diagonal, -inf above the diagonal
+    assert m.shape == (config.max_tokens, config.max_tokens)
 
 
 def test_forward(
     config: ModelConfig,
     params: ModelParameters,
+    rope: Rope,
+    mask: Array,
     token_embeddings: Array,
     attention_output: Array,
 ):
@@ -121,11 +116,11 @@ def test_forward(
     #
 
     # I transform x w/ attention
-    x, kv_cache = ll.attention.forward(config, attention, x, kv_cache)
+    y, kv_cache = ll.attention.forward(config, attention, rope, mask, x, kv_cache)
 
     #
     # Thens
     #
 
-    # x should match expected output
-    assert_similar_arrays(x, attention_output)
+    # y should match expected output
+    assert_similar_arrays(y, attention_output)

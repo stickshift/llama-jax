@@ -1,28 +1,39 @@
 """Rotary Position Embeddings (RoPE)."""
 
-from typing import NamedTuple, cast
+from typing import NamedTuple
 
 from jax import Array
 from jax import numpy as jnp
-from jax.typing import DTypeLike
 
 from llama_jax.checkpoint import ModelConfig
-from llama_jax.tools import recursive_tuple
 
 __all__ = [
     "Rope",
     "RotationMatrix",
     "create",
     "rotate",
-    "rotation_matrices",
     "swap",
 ]
 
 RotationMatrix = tuple[tuple[float, ...]]
 
 
-def rotation_matrices(base_theta: float, d: int, dtype: DTypeLike, n: int) -> tuple[RotationMatrix, RotationMatrix]:
+class Rope(NamedTuple):
+    """RoPE state."""
+
+    cos: Array
+
+    sin: Array
+
+
+def create(config: ModelConfig) -> Rope:
     """Compute RoPE cos and sin rotation matrices."""
+    # Hyperparameters
+    base_theta = config.rope_theta
+    d = config.d_head
+    n = config.max_tokens
+    dtype = config.dtype
+
     # Calculate thetas
     i = jnp.arange(d // 2)
     thetas = base_theta ** (-2 * i / d)
@@ -44,27 +55,7 @@ def rotation_matrices(base_theta: float, d: int, dtype: DTypeLike, n: int) -> tu
     assert cos.shape[0] == n and cos.shape[1] == d  # noqa: PT018
     assert sin.shape[0] == n and sin.shape[1] == d  # noqa: PT018
 
-    # Convert to hashable RotationMatrices
-    cos_values = cast(RotationMatrix, recursive_tuple(cos.tolist()))
-    sin_values = cast(RotationMatrix, recursive_tuple(sin.tolist()))
-
-    return cos_values, sin_values
-
-
-class Rope(NamedTuple):
-    """RoPE state."""
-
-    cos: Array
-
-    sin: Array
-
-
-def create(config: ModelConfig, n: int) -> Rope:
-    """Compute RoPE cos and sin rotation matrices."""
-    return Rope(
-        cos=jnp.array(config.rope_cos[:n]),
-        sin=jnp.array(config.rope_sin[:n]),
-    )
+    return Rope(cos=cos, sin=sin)
 
 
 def swap(x: Array) -> Array:

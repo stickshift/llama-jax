@@ -54,7 +54,7 @@ def test_forward_full_sequence(
     # Logits for last token in sequence
     logits0 = logits[:, -1]
 
-    # I created a Model
+    # I initialize model
     model = ll.model.create(config, params)
 
     #

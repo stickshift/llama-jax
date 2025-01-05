@@ -11,7 +11,6 @@ __all__ = [
     "MutableKVCache",
     "apply",
     "create",
-    "length",
 ]
 
 
@@ -41,14 +40,3 @@ def apply(cached_values: Array | None, values: Array) -> Array:
         return values
 
     return jnp.concat([cached_values, values], axis=-2)
-
-
-def length(kv_cache: KVCache | LayerKVCache) -> int:
-    """Return number of entries in cache."""
-    if not isinstance(kv_cache, LayerKVCache):
-        kv_cache = kv_cache[0]
-
-    if kv_cache.keys is None:
-        return 0
-
-    return kv_cache.keys.shape[-2]

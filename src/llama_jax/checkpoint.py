@@ -11,9 +11,7 @@ from jax import Array
 from jax import numpy as jnp
 from jax.typing import DTypeLike
 
-import llama_jax as ll
 from llama_jax.tokenizer import Tokenizer
-from llama_jax.tools import recursive_tuple
 
 __all__ = [
     "BATCH_AXIS",
@@ -50,9 +48,6 @@ class TrainingLevel(str, Enum):
     INSTRUCT = "instruct"
 
 
-Tuple2D = tuple[tuple[float, ...]]
-
-
 class ModelConfig(NamedTuple):
     """Llama3 model config."""
 
@@ -81,12 +76,6 @@ class ModelConfig(NamedTuple):
     training: TrainingLevel
 
     rope_theta: float
-
-    rope_cos: Tuple2D
-
-    rope_sin: Tuple2D
-
-    mask: Tuple2D
 
 
 def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
@@ -133,17 +122,6 @@ def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
     # Override with kwargs
     data |= kwargs
 
-    # Spin rope
-    data["rope_cos"], data["rope_sin"] = ll.rope.rotation_matrices(
-        data["rope_theta"],
-        data["d_head"],
-        data["dtype"],
-        data["max_tokens"],
-    )
-
-    # Generate mask
-    data["mask"] = _attention_mask(data["max_tokens"], data["dtype"])
-
     return ModelConfig(**data)
 
 
@@ -178,29 +156,3 @@ def load_tokenizer(config: ModelConfig) -> Tokenizer:
     """Load tokenizer from checkpoint."""
     # Load tiktoken model
     return Tokenizer(config.checkpoint_path / "tokenizer.model")
-
-
-# ------------------------------------------------------------------------------
-# Utilities
-# ------------------------------------------------------------------------------
-
-
-def _attention_mask(n: int, dtype: DTypeLike) -> Tuple2D:
-    """Compute reusable masked attention bias term M.
-
-    Returns:
-        Tuple2D: (n, n) diagonal matrix w/ upper triangular elements set to -inf, 0 otherwise.
-    """
-    # Create boolean mask w/ main diagonal and below set to False
-    mask = ~jnp.tril(jnp.ones((n, n), dtype=jnp.bool_))
-
-    # Apply mask to fill array with -inf, 0 otherwise
-    m = jnp.where(mask, -jnp.inf, 0)
-
-    # Apply dtype
-    m = m.astype(dtype)
-
-    # Convert to hashable tuple
-    m = recursive_tuple(m.tolist())
-
-    return cast(Tuple2D, m)

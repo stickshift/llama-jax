@@ -9,6 +9,7 @@ from llama_jax.attention import Attention
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
 from llama_jax.kv_cache import LayerKVCache
+from llama_jax.rope import Rope
 
 __all__ = [
     "Layer",
@@ -39,6 +40,8 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Layer:
 def forward(
     config: ModelConfig,
     state: Layer,
+    rope: Rope,
+    mask: Array,
     x: Array,
     kv_cache: LayerKVCache,
 ) -> tuple[Array, LayerKVCache]:
@@ -47,7 +50,7 @@ def forward(
     assert x.ndim == 3
 
     # Attention
-    x, kv_cache = ll.attention.forward(config, state.attention, x, kv_cache)
+    x, kv_cache = ll.attention.forward(config, state.attention, rope, mask, x, kv_cache)
 
     # FFN
     x = ll.ffn.forward(config, state.ffn, x)

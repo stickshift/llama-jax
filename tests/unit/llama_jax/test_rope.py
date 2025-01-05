@@ -4,21 +4,21 @@ import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
 
 
-def test_factory(config: ModelConfig, n: int):
+def test_factory(config: ModelConfig):
     #
     # Whens
     #
 
     # I initialize RoPE rotation matrices
-    rope = ll.rope.create(config, n)
+    rope = ll.rope.create(config)
 
     #
     # Thens
     #
 
-    # rotation matrices should have shape (n, d_head)
-    assert rope.cos.shape == (n, config.d_head)
-    assert rope.sin.shape == (n, config.d_head)
+    # rotation matrices should have shape (max_tokens, d_head)
+    assert rope.cos.shape == (config.max_tokens, config.d_head)
+    assert rope.sin.shape == (config.max_tokens, config.d_head)
 
     # rotation matrices should match config dtype
     assert rope.cos.dtype == config.dtype
@@ -82,7 +82,7 @@ def test_rotate():
         rope_theta=rope_theta,
         d_head=d_head,
     )
-    rope = ll.rope.create(config, n)
+    rope = ll.rope.create(config)
 
     #
     # Whens

@@ -157,10 +157,12 @@ def attention_output(
     # Normalize
     x = layer.attention_norm(x)
 
+    # Generate (n, n) mask bias term
+    m = torch.tensor(np.array(mask[:n, :n]), device=torch_device)
+
     # Attention
     freqs_cis = reference_model.freqs_cis[:n]
-    mask = torch.tensor(np.array(mask), device=torch_device)
-    x = layer.attention(x, start_pos=0, freqs_cis=freqs_cis, mask=mask)
+    x = layer.attention(x, start_pos=0, freqs_cis=freqs_cis, mask=m)
 
     # Merge residuals
     x = residuals + x
@@ -235,11 +237,11 @@ def logits(config: ModelConfig, bs: int, n: int, torch_device, reference_model: 
 def rope(config: ModelConfig, n: int) -> Rope:
     """RoPE matrices."""
 
-    return ll.rope.create(config, n)
+    return ll.rope.create(config)
 
 
 @pytest.fixture(scope="session")
 def mask(config: ModelConfig, n: int) -> Array:
     """Causal attention mask."""
 
-    return ll.attention.attention_mask(config, n)
+    return ll.attention.attention_mask(config)

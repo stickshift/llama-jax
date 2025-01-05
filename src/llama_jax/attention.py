@@ -10,6 +10,7 @@ import llama_jax as ll
 from llama_jax.checkpoint import HEAD_AXIS, MODEL_AXIS, TOKEN_AXIS, ModelConfig, ModelParameters
 from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rms_norm import RMSNorm
+from llama_jax.rope import Rope
 
 __all__ = [
     "Attention",
@@ -114,14 +115,40 @@ def combine_heads(x: Array) -> Array:
     return y
 
 
-def attention_mask(config: ModelConfig, n: int) -> Array:
-    """Create (n, n) causal attention mask."""
-    return jnp.array([row[:n] for row in config.mask[:n]])
+def attention_mask(config: ModelConfig) -> Array:
+    """Compute reusable (n, n) causal attention mask."""
+    # Hyperparameters
+    n = config.max_tokens
+    dtype = config.dtype
+
+    # Create boolean mask w/ main diagonal and below set to False
+    mask = ~jnp.tril(jnp.ones((n, n), dtype=jnp.bool_))
+
+    # Apply mask to fill array with -inf, 0 otherwise
+    m = jnp.where(mask, -jnp.inf, 0)
+
+    # Apply dtype
+    m = m.astype(dtype)
+
+    return m
+
+
+def attention(config: ModelConfig, q: Array, k: Array, v: Array, m: Array) -> Array:
+    """Compute attention in parallel across all heads."""
+    # Attention scores
+    scores = softmax(q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + m, axis=-1)
+
+    # Apply scores to values
+    a = scores @ v
+
+    return a
 
 
 def forward(
     config: ModelConfig,
     state: Attention,
+    rope: Rope,
+    mask: Array,
     x: Array,
     kv_cache: LayerKVCache,
 ) -> tuple[Array, LayerKVCache]:
@@ -160,21 +187,18 @@ def forward(
     #     n_queries == n_keys and incremental mode where previous keys are loaded from kv_cache.
     #
     n_queries, n_keys = q.shape[TOKEN_AXIS], k.shape[TOKEN_AXIS]
+    q_positions = jnp.arange(n_keys - n_queries, n_keys)
     k_positions = jnp.arange(n_keys)
-    q_positions = k_positions[-n_queries:]
 
     # Encode positions by rotating queries and keys
-    rope = ll.rope.create(config, n_keys)
     q = ll.rope.rotate(rope, q, positions=q_positions)
     k = ll.rope.rotate(rope, k, positions=k_positions)
 
-    # Generate mask
-    m = attention_mask(config, q.shape[TOKEN_AXIS])
+    # Generate (q, k) mask bias term
+    m = mask[(n_keys - n_queries):n_keys, :n_keys]
 
     # Compute attention for all heads in parallel
-    #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V
-    scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + m
-    x = softmax(scores, axis=-1) @ v
+    x = attention(config, q, k, v, m)
 
     # Combine attention heads
     #   e.g. (bs, n_heads, n, d_head) -> (bs, n, d_model)

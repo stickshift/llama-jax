@@ -1,5 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
+import logging
+from logging import Logger
 import subprocess
+from time import perf_counter_ns as timer
 from typing import Callable, cast, no_type_check
 
 __all__ = [
@@ -7,6 +11,7 @@ __all__ = [
     "executor",
     "recursive_tuple",
     "shell",
+    "trace",
 ]
 
 
@@ -54,3 +59,26 @@ def executor() -> ThreadPoolExecutor:
 def recursive_tuple(x):
     """Convert list to tuple recursively."""
     return tuple(recursive_tuple(v) if isinstance(v, list) else v for v in x)
+
+
+def trace[**P, R](logger: Logger, log_level: int | None = None) -> Callable[P, R]:
+    """Decorate function with time instrumentation."""
+    # Defaults
+    log_level = default_arg(log_level, logging.DEBUG)
+
+    def decorator(f: Callable[P, R]) -> Callable[P, R]:
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            start_time = timer()
+
+            try:
+                result = f(*args, **kwargs)
+            finally:
+                duration = (timer() - start_time) / 1000000
+                logger.log(log_level, f"{f.__name__} took {duration:0.0f} ms")
+
+            return result
+
+        return wrapper
+
+    return decorator

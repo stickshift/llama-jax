@@ -1,5 +1,6 @@
 """Llama Model."""
 
+import logging
 from collections.abc import Sequence
 from functools import partial
 from typing import NamedTuple
@@ -15,7 +16,8 @@ from llama_jax.embeddings import Embeddings
 from llama_jax.head import Head
 from llama_jax.kv_cache import KVCache, MutableKVCache
 from llama_jax.layer import Layer
-from llama_jax.tools import default_arg
+from llama_jax.rope import Rope
+from llama_jax.tools import default_arg, trace
 
 __all__ = [
     "Model",
@@ -24,6 +26,7 @@ __all__ = [
     "next_token",
 ]
 
+logger = logging.getLogger(__name__)
 
 class Model(NamedTuple):
     """Model state."""
@@ -33,6 +36,10 @@ class Model(NamedTuple):
     layers: Sequence[Layer]
 
     head: Head
+
+    rope: Rope
+
+    mask: Array
 
 
 def create(config: ModelConfig, params: ModelParameters) -> Model:
@@ -53,13 +60,24 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     # Head
     head = ll.head.create(config, params)
 
-    return Model(
+    # Rope
+    rope = ll.rope.create(config)
+
+    # Mask
+    mask = ll.attention.attention_mask(config)
+
+    model = Model(
         embeddings=embeddings,
         layers=layers,
         head=head,
+        rope=rope,
+        mask=mask,
     )
 
+    return model
 
+
+@trace(logger)
 @partial(jax.jit, static_argnames=("config",))
 def forward(
     config: ModelConfig,
@@ -86,7 +104,7 @@ def forward(
 
     # Apply layers
     for i, layer in enumerate(state.layers):
-        x, kvc[i] = ll.layer.forward(config, layer, x, kvc[i])
+        x, kvc[i] = ll.layer.forward(config, layer, state.rope, state.mask, x, kvc[i])
 
     # Convert kv caches back into immutable sequence
     kv_cache = KVCache(kvc)
@@ -101,6 +119,7 @@ def forward(
     return x
 
 
+@trace(logger)
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def next_token(
     logits: Array,
