@@ -19,6 +19,7 @@ extend-exclude = [
   ".venv/*",
   "*.ipynb",
   "pyproject.toml",
+  "src/llama_jax/benchmarks/llama_models.py",
 ]
 
 # lint

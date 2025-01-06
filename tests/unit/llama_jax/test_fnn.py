@@ -1,16 +1,19 @@
-from jax import random
+from jax import Array
+from jax import numpy as jnp
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
+
+from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 
-def test_factory():
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Givens
     #
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
 
     #
     # Whens
@@ -25,42 +28,39 @@ def test_factory():
 
     # ffn should be populated
     assert ffn.input.shape == (config.d_model, config.d_ffn)
+    assert ffn.input.dtype == config.dtype
     assert ffn.gate.shape == (config.d_model, config.d_ffn)
+    assert ffn.gate.dtype == config.dtype
     assert ffn.output.shape == (config.d_ffn, config.d_model)
+    assert ffn.output.dtype == config.dtype
 
 
-def test_forward():
+def test_forward(
+    config: ModelConfig,
+    params: ModelParameters,
+    attention_output: Array,
+    ffn_output: Array,
+):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
     # I created FFN for layers.0.feed_forward
     ffn = ll.ffn.create(config, params, "layers.0.feed_forward")
 
-    # sequence length
-    n = 10
-
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    # Sample attention output
+    x = attention_output
 
     #
     # Whens
     #
 
     # I transform x w/ ffn
-    y = ll.ffn.forward(config, ffn, x)
+    x = ll.ffn.forward(config, ffn, x)
 
     #
     # Thens
     #
 
-    # y.shape didn't change
-    assert y.shape == x.shape
+    # x should match expected output
+    assert_similar_arrays(x, ffn_output)

@@ -1,36 +1,40 @@
-from jax import random
+from jax import Array
 
 import llama_jax as ll
+from llama_jax.tokenizer import Tokenizer
 
 
-def test_323b():
+def test_323b(key: Array, tokenizer: Tokenizer):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
+    # Sequence prompts
+    prompts = (
+        "A B C",
+        "one two three",
+    )
 
     # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
 
-    # I initialized a text generator w/ token sampling disabled
-    key, subkey = random.split(key)
-    generator = ll.text.generator(config, key=subkey, temperature=0)
-
-    # Greek prompt
-    prompt = "alpha beta gamma"
+    # I initialized a text generator w/ token sampling disabled and max_tokens = 3
+    generator, key = ll.text.generator(config, key, temperature=0, max_tokens=3)
 
     #
     # Whens
     #
 
-    # I generate next token
-    token = next(generator(prompt))
+    # I generate tokens
+    for tokens in generator(prompts):
+        prompts = tuple(p + t for p, t in zip(prompts, tokens))
 
     #
     # Thens
     #
 
-    # token should be "delta"
-    assert token.strip() == "delta"
+    # prompts should be
+    assert prompts == (
+        "A B C D E F",
+        "one two three four five six",
+    )

@@ -1,36 +1,35 @@
 """Text completions."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from functools import partial
-from typing import Callable
+from typing import Any, Callable
 
-from jax import numpy as jnp
-from jax import random
-from jax.typing import ArrayLike
+from jax import Array, random
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
 from llama_jax.model import Model
-from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
 __all__ = [
     "generator",
 ]
 
+TextGenerator = Callable[[str | Sequence[str]], Iterator[str | Sequence[str]]]
+
 
 def generator(
     config: ModelConfig,
+    key: Array,
+    *,
     model: Model | None = None,
-    key: ArrayLike | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
     max_tokens: int | None = None,
-) -> Callable[[str], Iterator[str]]:
+) -> tuple[TextGenerator, Array]:
     """Create a text generator."""
     # Defaults
-    key = default_arg(key, default_factory=partial(random.key, 42))
     max_tokens = default_arg(max_tokens, 32)
 
     # Initialize tokenizer
@@ -38,65 +37,44 @@ def generator(
 
     # Initialize model if not provided
     if model is None:
-        params = ll.checkpoint.load_parameters(config)
-        model = ll.model.create(config, params)
+        model = ll.model.create(config, ll.checkpoint.load_parameters(config))
 
-    return partial(
-        _generate,
-        config=config,
-        tokenizer=tokenizer,
-        model=model,
-        key=key,
-        temperature=temperature,
-        top_k=top_k,
-        top_p=top_p,
-        max_tokens=max_tokens,
-    )
+    # Define generator callable
+    def wrapper(prompts: str | Sequence[str], *, key: Array, **kwargs: Any) -> Iterator[str | Sequence[str]]:
+        # Override ctor args
+        nonlocal max_tokens
+        max_tokens = kwargs.get("max_tokens", max_tokens)
+        assert max_tokens is not None
 
+        # Remember if prompts are batched
+        batched = not isinstance(prompts, str)
 
-def _generate(
-    prompt: str,
-    *,
-    config: ModelConfig,
-    tokenizer: Tokenizer,
-    model: Model,
-    key: ArrayLike,
-    temperature: float | None,
-    top_k: int | None,
-    top_p: float | None,
-    max_tokens: int,
-) -> Iterator[str]:
-    """Generate tokens given a prompt."""
-    # Split prompt into tokens
-    token_ids = tokenizer.encode(prompt)
+        # Initialize key/value cache
+        kv_cache = ll.kv_cache.create(config)
 
-    # Convert token ids into mutable list
-    token_ids = token_ids.tolist()
+        # Split prompts into tokens
+        token_ids = tokenizer.encode(prompts)
 
-    # Generate output until we get a stop token or we exceed max_tokens.
-    for _ in range(max_tokens):
-        # Initialize x with current token ids
-        x = jnp.array(token_ids)
+        # Initialize x with entire sequence on first pass
+        x = token_ids
 
-        # Transform token ids into next token logits
-        logits = ll.model.forward(config, model, x)
+        # Sample up to max tokens
+        for _ in range(max_tokens):
+            # Transform x into logits
+            logits, kv_cache = ll.model.forward(config, model, x, kv_cache=kv_cache)
 
-        # Sample tokens
-        key, subkey = random.split(key)
-        token_id = ll.head.sample_token(
-            logits,
-            key=subkey,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-        )
+            # Sample next token
+            next_token_id, key = ll.model.next_token(logits, key, temperature=temperature, top_k=top_k, top_p=top_p)
 
-        # Check stopping criteria
-        if token_id in tokenizer.stop_tokens:
-            break
+            # Yield next token
+            tokens = tokenizer.decode(next_token_id)
+            yield tokens if batched else tokens[0]
 
-        # Yield token
-        yield tokenizer.decode(token_id)
+            # Subsequent iterations process one token at a time
+            x = next_token_id
 
-        # Append to end of sequence
-        token_ids.append(token_id)
+    # Generate subkey to be consumed by wrapper
+    key, subkey = random.split(key)
+    wrapper = partial(wrapper, key=subkey)
+
+    return wrapper, key

@@ -1,16 +1,20 @@
-from jax import random
+from jax import Array
+import jax.dtypes
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 
-def test_factory():
+def test_factory(params: ModelParameters):
     #
     # Givens
     #
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
+    # I created custom config
+    config = ll.checkpoint.load_config(
+        "Llama3.2-3B",
+        dtype=jax.dtypes.bfloat16,
+    )
 
     #
     # Whens
@@ -25,29 +29,19 @@ def test_factory():
 
     # head should be populated
     assert head.output.shape == (config.d_model, config.vocab_size)
+    assert head.output.dtype == config.dtype
 
 
-def test_forward():
+def test_forward(config: ModelConfig, params: ModelParameters, bs: int, token_embeddings: Array):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
-    # I created Head
+    # I initialized Head
     head = ll.head.create(config, params)
 
-    # sequence length
-    n = 10
-
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens
@@ -60,5 +54,5 @@ def test_forward():
     # Thens
     #
 
-    # y.shape should be vocab_size
-    assert y.shape == (config.vocab_size,)
+    # y.shape should be (bs, config.vocab_size)
+    assert y.shape == (bs, config.vocab_size)

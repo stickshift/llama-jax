@@ -1,104 +1,62 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the terms described in the LICENSE file in
-# top-level folder for each specific model found within the models/ directory at
-# the top-level of this source tree.
-
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# This software may be used and distributed in accordance with the terms of the Llama 3 Community License Agreement.
-
-from logging import getLogger
-import os
+from collections.abc import Sequence
 from pathlib import Path
-from typing import (
-    AbstractSet,
-    Collection,
-    Dict,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Union,
-)
 
 from jax import Array
 from jax import numpy as jnp
 import tiktoken
 from tiktoken.load import load_tiktoken_bpe
 
-logger = getLogger(__name__)
+from llama_jax.tools import default_arg
 
+__all__ = [
+    "Tokenizer",
+]
 
-# The tiktoken tokenizer can handle <=400k chars without
-# pyo3_runtime.PanicException.
-TIKTOKEN_MAX_ENCODE_CHARS = 400_000
+_special_tokens = [
+    "<|begin_of_text|>",
+    "<|end_of_text|>",
+    "<|reserved_special_token_0|>",
+    "<|reserved_special_token_1|>",
+    "<|finetune_right_pad_id|>",
+    "<|step_id|>",
+    "<|start_header_id|>",
+    "<|end_header_id|>",
+    "<|eom_id|>",  # end of message
+    "<|eot_id|>",  # end of turn
+    "<|python_tag|>",
+    "<|image|>",
+]
 
-# https://github.com/openai/tiktoken/issues/195
-# Here we iterate over subsequences and split if we exceed the limit
-# of max consecutive non-whitespace or whitespace characters.
-MAX_NO_WHITESPACES_CHARS = 25_000
+_num_reserved_special_tokens = 256
 
+_reserved_tokens = [
+    f"<|reserved_special_token_{2 + i}|>" for i in range(_num_reserved_special_tokens - len(_special_tokens))
+]
 
-_INSTANCE = None
+_pat_str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"  # noqa: E501
 
 
 class Tokenizer:
-    """Tokenizing and encoding/decoding text using the Tiktoken tokenizer."""
+    """Llama3 tokenizer based on tiktoken and the llama-models implementation."""
 
-    special_tokens: Dict[str, int]
+    def __init__(self, model_path: Path | str):
+        # Convert to str
+        model_path = str(model_path)
 
-    num_reserved_special_tokens = 256
-
-    pat_str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"  # noqa: E501
-
-    @classmethod
-    def get_instance(cls):
-        global _INSTANCE
-
-        if _INSTANCE is None:
-            _INSTANCE = Tokenizer(os.path.join(os.path.dirname(__file__), "tokenizer.model"))
-        return _INSTANCE
-
-    def __init__(self, model_path: str):
-        """Initializes the Tokenizer with a Tiktoken model.
-
-        Args:
-            model_path (str): The path to the Tiktoken model file.
-        """
-        assert os.path.isfile(model_path), model_path
-
+        # Load base tokens from tiktoken model
         mergeable_ranks = load_tiktoken_bpe(model_path)
         num_base_tokens = len(mergeable_ranks)
-        special_tokens = [
-            "<|begin_of_text|>",
-            "<|end_of_text|>",
-            "<|reserved_special_token_0|>",
-            "<|reserved_special_token_1|>",
-            "<|finetune_right_pad_id|>",
-            "<|step_id|>",
-            "<|start_header_id|>",
-            "<|end_header_id|>",
-            "<|eom_id|>",  # end of message
-            "<|eot_id|>",  # end of turn
-            "<|python_tag|>",
-            "<|image|>",
-        ]
-        reserved_tokens = [
-            f"<|reserved_special_token_{2 + i}|>" for i in range(self.num_reserved_special_tokens - len(special_tokens))
-        ]
-        special_tokens = special_tokens + reserved_tokens
 
-        self.special_tokens = {token: num_base_tokens + i for i, token in enumerate(special_tokens)}
+        self.special_tokens = {token: num_base_tokens + i for i, token in enumerate(_special_tokens + _reserved_tokens)}
+
         self.model = tiktoken.Encoding(
-            name=Path(model_path).name,
-            pat_str=self.pat_str,
+            name=model_path,
+            pat_str=_pat_str,
             mergeable_ranks=mergeable_ranks,
             special_tokens=self.special_tokens,
         )
 
-        self.n_words: int = num_base_tokens + len(special_tokens)
-        # BOS / EOS token IDs
+        self.n_words: int = num_base_tokens + len(self.special_tokens)
         self.bos_id: int = self.special_tokens["<|begin_of_text|>"]
         self.eos_id: int = self.special_tokens["<|end_of_text|>"]
         self.eot_id: int = self.special_tokens["<|eot_id|>"]
@@ -111,99 +69,51 @@ class Tokenizer:
             self.special_tokens["<|eot_id|>"],
         ]
 
-    def encode(
-        self,
-        s: str,
-        *,
-        bos: bool = None,
-        eos: bool = None,
-        allowed_special: Optional[Union[Literal["all"], AbstractSet[str]]] = None,
-        disallowed_special: Union[Literal["all"], Collection[str]] = (),
-    ) -> Array:
-        """Encodes a string into a list of token IDs.
-
-        Args:
-            s (str): The input string to be encoded.
-            bos (bool): Whether to prepend the beginning-of-sequence token.
-            eos (bool): Whether to append the end-of-sequence token.
-            allowed_special ("all"|set[str]): allowed special tokens in string
-            disallowed_special ("all"|set[str]): special tokens that raise an error when in string
-
-        Returns:
-            list[int]: A list of token IDs.
-
-        By default, setting disallowed_special=() encodes a string by ignoring
-        special tokens. Specifically:
-        - Setting `disallowed_special` to () will cause all text corresponding
-          to special tokens to be encoded as natural text (insteading of raising
-          an error).
-        - Setting `allowed_special` to "all" will treat all text corresponding
-          to special tokens to be encoded as special tokens.
-        """
+    def encode(self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None) -> Array:
+        """Encodes a list of prompts into an array of token IDs."""
         # Defaults
-        bos = bos if bos is not None else True
-        eos = eos if eos is not None else False
-        allowed_special = allowed_special if allowed_special is not None else "all"
+        bos = default_arg(bos, True)
+        eos = default_arg(eos, False)
 
-        assert type(s) is str
+        # Ensure prompts is a sequence of prompts
+        if isinstance(prompts, str):
+            prompts = (prompts,)
 
-        substrs = (
-            substr
-            for i in range(0, len(s), TIKTOKEN_MAX_ENCODE_CHARS)
-            for substr in self._split_whitespaces_or_nonwhitespaces(
-                s[i : i + TIKTOKEN_MAX_ENCODE_CHARS], MAX_NO_WHITESPACES_CHARS
+        # Encode each prompt
+        token_ids = [
+            self.model.encode(
+                prompt,
+                allowed_special="all",
+                disallowed_special=(),
             )
-        )
-        t: List[int] = []
-        for substr in substrs:
-            t.extend(
-                self.model.encode(
-                    substr,
-                    allowed_special=allowed_special,
-                    disallowed_special=disallowed_special,
-                )
-            )
+            for prompt in prompts
+        ]
+
+        # Padding
+        pad_length = max(len(v) for v in token_ids)
+        for v in token_ids:
+            v.extend([self.pad_id] * (pad_length - len(v)))
+
+        # Inject bos/eos tokens
         if bos:
-            t.insert(0, self.bos_id)
+            token_ids = [[self.bos_id, *v] for v in token_ids]
         if eos:
-            t.append(self.eos_id)
+            token_ids = [[*v, self.eos_id] for v in token_ids]
 
-        return jnp.array(t)
+        return jnp.array(token_ids)
 
-    def decode(self, t: Array) -> str:
-        """Decodes a list of token IDs into a string.
+    def decode(self, token_ids: Array, special: bool | None = None) -> Sequence[str]:
+        """Decodes token_ids into sequence of strings."""
+        # Defaults
+        special = default_arg(special, True)
 
-        Args:
-            t (List[int]): The list of token IDs to be decoded.
+        # Validate
+        if token_ids.ndim != 2:
+            raise ValueError(f"token_ids is not a 2D array: {token_ids.shape}")
 
-        Returns:
-            str: The decoded string.
-        """
-        # Typecast is safe here. Tiktoken doesn't do anything list-related with the sequence.
+        # Collect token ids to decode
+        values = [
+            [tid.item() for tid in tids if special or tid not in self.special_tokens.values()] for tids in token_ids
+        ]
 
-        # Check for scalar array
-        if t.shape == ():
-            t = t.reshape(1)
-
-        return self.model.decode(t.tolist())
-
-    @staticmethod
-    def _split_whitespaces_or_nonwhitespaces(s: str, max_consecutive_slice_len: int) -> Iterator[str]:
-        """Splits the string `s` so that each substring contains no more than `max_consecutive_slice_len` consecutive whitespaces or consecutive non-whitespaces."""
-        current_slice_len = 0
-        current_slice_is_space = s[0].isspace() if len(s) > 0 else False
-        slice_start = 0
-
-        for i in range(len(s)):
-            is_now_space = s[i].isspace()
-
-            if current_slice_is_space ^ is_now_space:
-                current_slice_len = 1
-                current_slice_is_space = is_now_space
-            else:
-                current_slice_len += 1
-                if current_slice_len > max_consecutive_slice_len:
-                    yield s[slice_start:i]
-                    slice_start = i
-                    current_slice_len = 1
-        yield s[slice_start:]
+        return tuple(self.model.decode(v) for v in values)

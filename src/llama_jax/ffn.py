@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 from jax import Array
 from jax.nn import silu
-from jax.typing import ArrayLike
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -34,9 +33,9 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> FFN:
     parent_path = path.rsplit(".", 1)[0]
 
     # Note we transpose kernels so we don't need to during forward pass
-    input = params[f"{path}.w3.weight"].transpose()
-    gate = params[f"{path}.w1.weight"].transpose()
-    output = params[f"{path}.w2.weight"].transpose()
+    input = params[f"{path}.w3.weight"].transpose().astype(config.dtype)
+    gate = params[f"{path}.w1.weight"].transpose().astype(config.dtype)
+    output = params[f"{path}.w2.weight"].transpose().astype(config.dtype)
 
     return FFN(
         norm=ll.rms_norm.create(config, params, f"{parent_path}.ffn_norm"),
@@ -46,8 +45,11 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> FFN:
     )
 
 
-def forward(config: ModelConfig, state: FFN, x: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: FFN, x: Array) -> Array:
     """Transform x using feedforward network (FFN)."""
+    # Sanity check
+    assert x.ndim == 3
+
     # Save residuals
     residual = x
 

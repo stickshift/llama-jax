@@ -1,14 +1,17 @@
+from jax import Array
+from jax import numpy as jnp
+
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 
-def test_factory():
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Givens
     #
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
 
     #
     # Whens
@@ -23,23 +26,13 @@ def test_factory():
 
     # embeddings should be populated
     assert embeddings.values.shape == (config.vocab_size, config.d_model)
+    assert embeddings.values.dtype == config.dtype
 
 
-def test_forward():
+def test_forward(config: ModelConfig, params: ModelParameters, token_ids: Array, token_embeddings: Array):
     #
     # Givens
     #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
-    # I generated sample token_ids
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-    token_ids = tokenizer.encode("alpha beta gamma")
-
-    # n is length of token_ids
-    n = len(token_ids)
 
     # I created Embeddings
     embeddings = ll.embeddings.create(config, params)
@@ -55,5 +48,11 @@ def test_forward():
     # Thens
     #
 
-    # x is n x d_model array
-    assert x.shape == (n, config.d_model)
+    # x shape matches expected embeddings
+    assert x.shape == token_embeddings.shape
+
+    # x dtype matches expected embeddings
+    assert x.dtype == token_embeddings.dtype
+
+    # x values match expected embeddings
+    assert (x == token_embeddings).all()

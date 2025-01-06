@@ -1,19 +1,14 @@
-from jax import random
+from jax import Array
 
 import llama_jax as ll
 from llama_jax.attention import Attention
+from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
+from llama_jax.kv_cache import LayerKVCache
+from llama_jax.rope import Rope
 
 
-def test_factory():
-    #
-    # Givens
-    #
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Whens
     #
@@ -30,38 +25,32 @@ def test_factory():
     assert isinstance(layer.ffn, FFN)
 
 
-def test_forward():
+def test_forward(
+    config: ModelConfig,
+    params: ModelParameters,
+    rope: Rope,
+    mask: Array,
+    token_embeddings: Array,
+):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
-
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
-
     # I created Layer for layers.0
     layer = ll.layer.create(config, params, "layers.0")
 
-    # sequence length
-    n = 10
+    # I created a key/value cache
+    kv_cache = LayerKVCache()
 
-    # I generated rope rotation matrices and masked attention bias
-    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
-    m = ll.attention.masked_attention_bias(n, config.dtype)
-
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens
     #
 
     # I transform x w/ layer
-    y = ll.layer.forward(config, layer, x, r_cos, r_sin, m)
+    y, kv_cache = ll.layer.forward(config, layer, rope, mask, x, kv_cache)
 
     #
     # Thens
@@ -69,3 +58,7 @@ def test_forward():
 
     # y.shape didn't change
     assert y.shape == x.shape
+
+    # kv_cache should be populated
+    assert kv_cache.keys is not None
+    assert kv_cache.values is not None

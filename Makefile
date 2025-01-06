@@ -154,6 +154,7 @@ PHONIES := $(PHONIES) tests coverage
 #-------------------------------------------------------------------------------
 
 lint: venv
+	source $(VENV) && mypy
 	uvx ruff check $(RUFF_CHECK_OPTS)
 	uvx ruff format --check $(RUFF_FORMAT_OPTS)
 

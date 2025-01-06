@@ -1,18 +1,21 @@
-import jax
+from jax import Array
 from jax import numpy as jnp
-from jax import random
 
 import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, ModelParameters
+from llama_jax.kv_cache import LayerKVCache
+from llama_jax.rope import Rope
+
+from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 
-def test_factory():
+def test_factory(config: ModelConfig, params: ModelParameters):
     #
     # Givens
     #
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
 
     #
     # Whens
@@ -27,126 +30,39 @@ def test_factory():
 
     # attention should be populated
     assert attention.queries.shape == (config.d_model, config.n_heads * config.d_head)
+    assert attention.queries.dtype == config.dtype
+
     assert attention.keys.shape == (config.d_model, config.n_kv_heads * config.d_head)
+    assert attention.keys.dtype == config.dtype
+
     assert attention.values.shape == (config.d_model, config.n_kv_heads * config.d_head)
+    assert attention.values.dtype == config.dtype
+
     assert attention.output.shape == (config.d_model, config.d_model)
+    assert attention.output.dtype == config.dtype
 
 
-def test_rope_frequencies():
+def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings: Array):
     #
     # Givens
     #
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # sequence length
-    n = 10
-
-    #
-    # Whens
-    #
-
-    # I generate rope rotation matrices
-    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
-
-    #
-    # Thens
-    #
-
-    # rotation matrices should have shape (n, d_head)
-    assert r_cos.shape == (n, config.d_head)
-    assert r_sin.shape == (n, config.d_head)
-
-
-def test_rope_swap():
-    #
-    # Givens
-    #
-
-    # Dimensions
-    n = 10
-    m = 20
-    d = 4
-
-    # I generate sample n x m x d data
-    x = jnp.arange(n * m * d).reshape(n, m, d)
-
-    #
-    # Whens
-    #
-
-    # I swap x
-    y = ll.attention.rope_swap(x)
-
-    #
-    # Thens
-    #
-
-    # [x0, x1, x2, x3] -> [-x1, x0, -x3, x2] along last dimension
-    for i in range(n):
-        for j in range(m):
-            assert y[i, j, 0] == -x[i, j, 1]
-            assert y[i, j, 1] == x[i, j, 0]
-            assert y[i, j, 2] == -x[i, j, 3]
-            assert y[i, j, 3] == x[i, j, 2]
-
-
-def test_masked_attention_bias():
-    #
-    # Givens
-    #
-
-    # Dimensions
-    n = 10
-
-    #
-    # Whens
-    #
-
-    # I generate masked attention bias term M
-    m = ll.attention.masked_attention_bias(n, jax.dtypes.bfloat16)
-
-    #
-    # Thens
-    #
-
-    # m is (n, n) array with zeros below the diagonal, -inf above the diagonal
-    for i in range(n):
-        for j in range(n):
-            if j > i:
-                assert m[i, j] == -jnp.inf
-            else:
-                assert m[i, j] == 0
-
-
-def test_attention_heads():
-    #
-    # Givens
-    #
-
-    # Dimensions
-    n = 10
-    d_model = 128
-    d_head = 32
-    n_heads = d_model // d_head
-
-    # I generated sample embeddings
-    x = jnp.arange(n * d_model).reshape(n, d_model)
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens
     #
 
     # I split attention heads
-    y = ll.attention.split_heads(x, n_heads)
+    y = ll.attention.split_heads(x, config.n_heads)
 
     #
     # Thens
     #
 
-    # shape should be n_heads x n x d_head
-    assert y.shape == (n_heads, n, d_head)
+    # shape should be bs x n_heads x n x d_head
+    assert y.shape == (bs, config.n_heads, n, config.d_head)
 
     #
     # Whens
@@ -166,42 +82,61 @@ def test_attention_heads():
     assert (y == x).all()
 
 
-def test_forward():
+def test_attention_mask(config: ModelConfig, n: int):
     #
     # Givens
     #
 
-    # rng
-    key = random.key(42)
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
 
-    # I loaded config and parameters for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-    params = ll.checkpoint.load_parameters(config)
+    #
+    # Whens
+    #
+
+    # I generate mask
+    m = ll.attention.attention_mask(config)
+
+    #
+    # Thens
+    #
+
+    # m should be populated (max_tokens, max_tokens) w/ with zeros below the diagonal, -inf above the diagonal
+    assert m.shape == (config.max_tokens, config.max_tokens)
+    assert m.dtype == config.dtype
+
+
+def test_forward(
+    config: ModelConfig,
+    params: ModelParameters,
+    rope: Rope,
+    mask: Array,
+    token_embeddings: Array,
+    attention_output: Array,
+):
+    #
+    # Givens
+    #
 
     # I created Attention for layers.0.attention
     attention = ll.attention.create(config, params, "layers.0.attention")
 
-    # sequence length
-    n = 10
+    # I created a key/value cache
+    kv_cache = LayerKVCache()
 
-    # I generated rope rotation matrices and masked attention bias
-    r_cos, r_sin = ll.attention.rope_frequencies(config, n)
-    m = ll.attention.masked_attention_bias(n, config.dtype)
-
-    # I generated sample embeddings
-    key, subkey = random.split(key)
-    x = random.normal(subkey, (n, config.d_model))
+    # Sample embeddings
+    x = token_embeddings
 
     #
     # Whens
     #
 
     # I transform x w/ attention
-    y = ll.attention.forward(config, attention, x, r_cos, r_sin, m)
+    y, kv_cache = ll.attention.forward(config, attention, rope, mask, x, kv_cache)
 
     #
     # Thens
     #
 
-    # y.shape didn't change
-    assert y.shape == x.shape
+    # y should match expected output
+    assert_similar_arrays(y, attention_output)

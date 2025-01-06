@@ -1,46 +1,141 @@
-from jax import Array
-
-import llama_jax as ll
+from llama_jax.tokenizer import Tokenizer
 
 
-def test_codec():
+def test_codec(tokenizer: Tokenizer):
     #
     # Givens
     #
 
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # I loaded tokenizer
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-
     # A prompt
-    prompt0 = "What is the capital of Massachusetts? Answer in one word."
+    prompts0 = ("What is the capital of Massachusetts? Answer in one word.",)
 
     #
     # Whens
     #
 
     # I encode prompt
-    token_ids = tokenizer.encode(prompt0, bos=False)
+    token_ids = tokenizer.encode(prompts0, bos=False)
 
     #
     # Thens
     #
 
-    # token_ids should be an Array
-    assert isinstance(token_ids, Array)
+    # token_ids should be a 2D Array
+    assert token_ids.ndim == 2
 
     #
     # Whens
     #
 
     # I decode token ids
-    prompt1 = tokenizer.decode(token_ids)
+    prompts1 = tokenizer.decode(token_ids)
 
     #
     # Thens
     #
 
-    # prompt1 should equal prompt0
-    assert prompt1 == prompt0
+    # prompts1 should equal prompts0
+    assert prompts1 == prompts0
+
+
+def test_padding(tokenizer: Tokenizer):
+    #
+    # Givens
+    #
+
+    # Prompts with different lengths
+    prompts = (
+        "alpha beta",
+        "alpha beta gamma",
+    )
+
+    #
+    # Whens
+    #
+
+    # I encode prompts
+    token_ids = tokenizer.encode(prompts, bos=False)
+
+    #
+    # Thens
+    #
+
+    # token_ids should have shape (2, 3)
+    assert token_ids.shape == (2, 3)
+
+    # token_ids should be padded
+    assert token_ids[0, 2] == tokenizer.pad_id
+
+
+def test_bos(tokenizer: Tokenizer):
+    #
+    # Givens
+    #
+
+    # Prompt
+    prompts = ("What is the capital of Massachusetts? Answer in one word.",)
+
+    #
+    # Whens
+    #
+
+    # I encode prompts with marker
+    token_ids = tokenizer.encode(prompts, bos=True)
+
+    #
+    # Thens
+    #
+
+    # token_ids should include bos
+    assert token_ids[0, 0] == tokenizer.bos_id
+
+    #
+    # Whens
+    #
+
+    # I encode prompts with no marker
+    token_ids = tokenizer.encode(prompts, bos=False)
+
+    #
+    # Thens
+    #
+
+    # token_ids should not include bos
+    assert token_ids[0, 0] != tokenizer.bos_id
+
+
+def test_eos(tokenizer: Tokenizer):
+    #
+    # Givens
+    #
+
+    # Prompt
+    prompts = ("What is the capital of Massachusetts? Answer in one word.",)
+
+    #
+    # Whens
+    #
+
+    # I encode prompts with marker
+    token_ids = tokenizer.encode(prompts, eos=True)
+
+    #
+    # Thens
+    #
+
+    # token_ids should include marker
+    assert token_ids[0, -1] == tokenizer.eos_id
+
+    #
+    # Whens
+    #
+
+    # I encode prompts with no marker
+    token_ids = tokenizer.encode(prompts, eos=False)
+
+    #
+    # Thens
+    #
+
+    # token_ids should not include marker
+    assert token_ids[0, -1] != tokenizer.eos_id

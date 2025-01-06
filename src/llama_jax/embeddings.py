@@ -3,7 +3,6 @@
 from typing import NamedTuple
 
 from jax import Array
-from jax.typing import ArrayLike
 
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 
@@ -22,9 +21,12 @@ class Embeddings(NamedTuple):
 
 def create(config: ModelConfig, params: ModelParameters) -> Embeddings:
     """Load Llama3 Embeddings."""
-    return Embeddings(values=params["tok_embeddings.weight"])
+    return Embeddings(values=params["tok_embeddings.weight"].astype(config.dtype))
 
 
-def forward(config: ModelConfig, state: Embeddings, token_ids: ArrayLike) -> Array:
+def forward(config: ModelConfig, state: Embeddings, token_ids: Array) -> Array:
     """Map token ids to embeddings."""
+    # Sanity check
+    assert token_ids.ndim == 2
+
     return state.values[token_ids]

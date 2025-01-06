@@ -5,15 +5,19 @@ from enum import Enum
 import json
 from pathlib import Path
 import pickle
-from typing import NamedTuple
+from typing import Any, NamedTuple, cast
 
 from jax import Array
-from jax.dtypes import bfloat16
+import jax.dtypes
 from jax.typing import DTypeLike
 
-from .tokenizer import Tokenizer
+from llama_jax.tokenizer import Tokenizer
 
 __all__ = [
+    "BATCH_AXIS",
+    "HEAD_AXIS",
+    "MODEL_AXIS",
+    "TOKEN_AXIS",
     "ModelConfig",
     "ModelParameters",
     "TrainingLevel",
@@ -21,6 +25,15 @@ __all__ = [
     "load_parameters",
     "load_tokenizer",
 ]
+
+# ------------------------------------------------------------------------------
+# Constants
+# ------------------------------------------------------------------------------
+
+BATCH_AXIS = -4
+HEAD_AXIS = -3
+TOKEN_AXIS = -2
+MODEL_AXIS = -1
 
 
 # ------------------------------------------------------------------------------
@@ -40,6 +53,8 @@ class ModelConfig(NamedTuple):
 
     checkpoint_path: Path
 
+    max_tokens: int
+
     vocab_size: int
 
     d_model: int
@@ -56,14 +71,14 @@ class ModelConfig(NamedTuple):
 
     rms_norm_eps: float
 
-    rope_theta: float
-
     dtype: DTypeLike
 
     training: TrainingLevel
 
+    rope_theta: float
 
-def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
+
+def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
     """Load Llama3 config from checkpoint params.json."""
     # Build checkpoint_path
     checkpoints_path = Path("~/.llama/checkpoints").expanduser()
@@ -72,6 +87,10 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
     # Validate
     if not checkpoint_path.is_dir():
         raise ValueError(f"Checkpoint not found: {checkpoint_path}")
+
+    # Defaults
+    max_tokens = 512
+    dtype = jax.dtypes.bfloat16
 
     # Load hyperparameters
     hparams_path = checkpoint_path / "params.json"
@@ -86,6 +105,7 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
 
     data = {
         "checkpoint_path": checkpoint_path,
+        "max_tokens": max_tokens,
         "vocab_size": hparams["vocab_size"],
         "d_model": hparams["dim"],
         "n_layers": hparams["n_layers"],
@@ -95,7 +115,7 @@ def load_config(checkpoint_name: str, **kwargs) -> ModelConfig:
         "n_kv_heads": hparams["n_kv_heads"],
         "rope_theta": hparams["rope_theta"],
         "d_ffn": d_ffn,
-        "dtype": bfloat16,
+        "dtype": dtype,
         "training": TrainingLevel.INSTRUCT if checkpoint_name.endswith("-Instruct") else TrainingLevel.PRETRAINED,
     }
 
@@ -122,7 +142,7 @@ def load_parameters(config: ModelConfig) -> ModelParameters:
         )
 
     # Load state from checkpoint
-    params = pickle.loads(input_path.read_bytes())  # noqa
+    params = cast(ModelParameters, pickle.loads(input_path.read_bytes()))
 
     return params
 
@@ -135,4 +155,4 @@ def load_parameters(config: ModelConfig) -> ModelParameters:
 def load_tokenizer(config: ModelConfig) -> Tokenizer:
     """Load tokenizer from checkpoint."""
     # Load tiktoken model
-    return Tokenizer(str(config.checkpoint_path / "tokenizer.model"))
+    return Tokenizer(config.checkpoint_path / "tokenizer.model")

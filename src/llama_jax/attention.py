@@ -5,20 +5,26 @@ from typing import NamedTuple
 from jax import Array
 from jax import numpy as jnp
 from jax.nn import softmax
-from jax.typing import ArrayLike, DTypeLike
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, ModelParameters
+from llama_jax.checkpoint import HEAD_AXIS, MODEL_AXIS, TOKEN_AXIS, ModelConfig, ModelParameters
+from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rms_norm import RMSNorm
+from llama_jax.rope import Rope
 
 __all__ = [
     "Attention",
+    "attention_mask",
+    "combine_heads",
     "create",
     "forward",
-    "rope_frequencies",
-    "rope_rotate",
-    "rope_swap",
+    "split_heads",
 ]
+
+
+# ------------------------------------------------------------------------------
+# Attention
+# ------------------------------------------------------------------------------
 
 
 class Attention(NamedTuple):
@@ -40,10 +46,10 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     parent_path = path.rsplit(".", 1)[0]
 
     # Note we transpose kernels so we don't need to during forward pass
-    queries = params[f"{path}.wq.weight"].transpose()
-    keys = params[f"{path}.wk.weight"].transpose()
-    values = params[f"{path}.wv.weight"].transpose()
-    output = params[f"{path}.wo.weight"].transpose()
+    queries = params[f"{path}.wq.weight"].transpose().astype(config.dtype)
+    keys = params[f"{path}.wk.weight"].transpose().astype(config.dtype)
+    values = params[f"{path}.wv.weight"].transpose().astype(config.dtype)
+    output = params[f"{path}.wo.weight"].transpose().astype(config.dtype)
 
     return Attention(
         norm=ll.rms_norm.create(config, params, f"{parent_path}.attention_norm"),
@@ -54,122 +60,98 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> Attention
     )
 
 
-def rope_frequencies(config: ModelConfig, n: int) -> tuple[Array, Array]:
-    """Compute RoPE cos and sin rotation matrices."""
-    # Hyperparameters
-    base = config.rope_theta
-    d = config.d_head
-    dtype = config.dtype
+def split_heads(x: Array, n_heads: int) -> Array:
+    """Split attention heads.
 
-    # Calculate thetas
-    i = jnp.arange(d // 2, dtype=dtype)
-    thetas = base ** (-2 * i / d)
+    Args:
+        x (Array): Input tensor w/ shape (bs, n, d_model)
+        n_heads (int): Number of attention heads
 
-    # Duplicate each theta, e.g. [theta_0, theta_1] -> [theta_0, theta_0, theta_1, theta_1]
-    thetas = jnp.repeat(thetas, 2)
-
-    # Repeat thetas for each position from 0 to n and stack in an (n, d_head) matrix
-    theta_stack = jnp.stack([m * thetas for m in range(n)])
-
-    # Apply cos, sin
-    r_cos = jnp.cos(theta_stack)
-    r_sin = jnp.sin(theta_stack)
-
+    Returns:
+        Array: x reshaped to (bs, n_heads, n, d_head)
+    """
     # Sanity check
-    assert r_cos.shape[0] == n and r_cos.shape[1] == d  # noqa: PT018
-    assert r_sin.shape[0] == n and r_sin.shape[1] == d  # noqa: PT018
+    assert len(x.shape) == 3
 
-    return r_cos, r_sin
+    # Calculate dimensions from static shape
+    d_head = x.shape[MODEL_AXIS] // n_heads
 
+    # Split last dimension into n_heads groups:
+    #   e.g (bs, n, d_model) -> (bs, n, n_heads, d_head)
+    shape = x.shape[:-1] + (n_heads, d_head)
+    y = jnp.reshape(x, shape)
 
-def rope_swap(x: ArrayLike) -> Array:
-    """Maps [x0, x1, x2, x3] -> [-x1, x0, -x3, x2] along last dimension."""
-    # Split last dimension into pairs
-    y = x.reshape(-1, 2)
-
-    # Swap pairs. e.g. [x0, x1] -> [x1, x0]
-    y = y[:, ::-1]
-
-    # Restore original shape
-    y = y.reshape(x.shape)
-
-    # Create a mask for even indices along the last dimension
-    mask = jnp.arange(y.shape[-1]) % 2 == 0
-
-    # Apply the mask to multiply even indices by -1
-    #   e.g. [x0, x1, x2, x3] -> [-x0, x1, -x2, x3]
-    y = y * jnp.where(mask, -1, 1)
+    # Swap token and head dimensions
+    #   e.g (bs, n, n_heads, d_head) -> (bs, n_heads, n, d_head)
+    y = jnp.swapaxes(y, HEAD_AXIS, TOKEN_AXIS)
 
     return y
 
 
-def rope_rotate(x, r_cos, r_sin):
-    """Rotate embeddings using RoPE transform."""
-    return (x * r_cos) + (rope_swap(x) * r_sin)
+def combine_heads(x: Array) -> Array:
+    """Combine attention heads.
 
-
-def masked_attention_bias(n: int, dtype: DTypeLike) -> Array:
-    """Compute reusable masked attention bias term M.
+    Args:
+        x (Array): Input tensor w/ shape (bs, n_heads, n, d_head)
 
     Returns:
-        Array: (n, n) diagonal matrix w/ upper triangular elements set to -inf, 0 otherwise.
+        Array: x reshaped to (bs, n, n_heads * d_head)
     """
+    # Sanity check
+    assert len(x.shape) == 4
+
+    # Calculate dimensions from static shape
+    n_heads, d_head = x.shape[HEAD_AXIS], x.shape[MODEL_AXIS]
+
+    # Swap token and head dimensions
+    #   e.g (bs, n_heads, n, d_head) -> (bs, n, n_heads, d_head)
+    y = jnp.swapaxes(x, HEAD_AXIS, TOKEN_AXIS)
+
+    # Merge last 2 dimensions
+    #   e.g (bs, n, n_heads, d_head) -> (bs, n, n_heads * d_head)
+    shape = y.shape[:-2] + (n_heads * d_head,)
+    y = jnp.reshape(y, shape)
+
+    return y
+
+
+def attention_mask(config: ModelConfig) -> Array:
+    """Compute reusable (n, n) causal attention mask."""
+    # Hyperparameters
+    n = config.max_tokens
+    dtype = config.dtype
+
     # Create boolean mask w/ main diagonal and below set to False
     mask = ~jnp.tril(jnp.ones((n, n), dtype=jnp.bool_))
 
     # Apply mask to fill array with -inf, 0 otherwise
     m = jnp.where(mask, -jnp.inf, 0)
 
-    return m.astype(dtype)
+    # Apply dtype
+    m = m.astype(dtype)
+
+    return m
 
 
-def split_heads(x: Array, n_heads: int) -> Array:
-    """Split attention heads."""
-    # Sanity check
-    assert len(x.shape) >= 2
+def attention(config: ModelConfig, q: Array, k: Array, v: Array, m: Array) -> Array:
+    """Compute attention in parallel across all heads."""
+    # Attention scores
+    scores = softmax(q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + m, axis=-1)
 
-    # Calculate dimensions from static shape
-    d_head = x.shape[-1] // n_heads
+    # Apply scores to values
+    a = scores @ v
 
-    # Split last dimension into n_heads groups:
-    #   e.g (..., n, d_model) -> (..., n, n_heads, d_head)
-    y = x.reshape(-1, n_heads, d_head)
-
-    # Transpose dimensions -3 and -2
-    #   e.g (..., n, n_heads, d_head) -> (..., n_heads, n, d_head)
-    y = y.swapaxes(-3, -2)
-
-    return y
-
-
-def combine_heads(x: Array) -> Array:
-    """Combine attention heads."""
-    # Sanity check
-    assert len(x.shape) >= 3
-
-    # Calculate dimensions from static shape
-    n_heads = x.shape[-3]
-    d_head = x.shape[-1]
-
-    # Transpose dimensions -3 and -2
-    #   e.g (..., n_heads, n, d_head) -> (..., n, n_heads, d_head)
-    y = x.swapaxes(-3, -2)
-
-    # Merge last 2 dimensions
-    #   e.g (..., n, n_heads, d_head) -> (..., n, n_heads*d_head)
-    y = y.reshape(-1, n_heads * d_head)
-
-    return y
+    return a
 
 
 def forward(
     config: ModelConfig,
     state: Attention,
-    x: ArrayLike,
-    r_cos: ArrayLike,
-    r_sin: ArrayLike,
-    mask: ArrayLike,
-) -> Array:
+    rope: Rope,
+    mask: Array,
+    x: Array,
+    kv_cache: LayerKVCache,
+) -> tuple[Array, LayerKVCache]:
     """Transform x using grouped query attention (GQA)."""
     # Save residuals
     residual = x
@@ -183,25 +165,43 @@ def forward(
     v = x @ state.values
 
     # Split attention heads
+    #   e.g. (bs, n, d_model) -> (bs, n_heads, n, d_head)
     q = split_heads(q, config.n_heads)
     k = split_heads(k, config.n_kv_heads)
     v = split_heads(v, config.n_kv_heads)
 
+    # Update key/value cache
+    k = ll.kv_cache.apply(kv_cache.keys, k)
+    v = ll.kv_cache.apply(kv_cache.values, v)
+    kv_cache = LayerKVCache(keys=k, values=v)
+
     # Expand key/value groups
     reps = config.n_heads // config.n_kv_heads
-    k = k.repeat(reps, axis=0)
-    v = v.repeat(reps, axis=0)
+    k = k.repeat(reps, axis=HEAD_AXIS)
+    v = v.repeat(reps, axis=HEAD_AXIS)
+
+    # Calculate embedding positions in the sequence
+    #   * Keys are positioned at [0, ..., n_keys-1]
+    #
+    #   * Queries are positioned at last n_queries elements. This supports both full sequence mode where
+    #     n_queries == n_keys and incremental mode where previous keys are loaded from kv_cache.
+    #
+    n_queries, n_keys = q.shape[TOKEN_AXIS], k.shape[TOKEN_AXIS]
+    q_positions = jnp.arange(n_keys - n_queries, n_keys)
+    k_positions = jnp.arange(n_keys)
 
     # Encode positions by rotating queries and keys
-    q = rope_rotate(q, r_cos, r_sin)
-    k = rope_rotate(k, r_cos, r_sin)
+    q = ll.rope.rotate(rope, q, positions=q_positions)
+    k = ll.rope.rotate(rope, k, positions=k_positions)
+
+    # Generate (q, k) mask bias term
+    m = mask[(n_keys - n_queries) : n_keys, :n_keys]
 
     # Compute attention for all heads in parallel
-    #   e.g. softmax((Q * K^T) / sqrt(d_head) + M) * V
-    scores = q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + mask
-    x = softmax(scores, axis=-1) @ v
+    x = attention(config, q, k, v, m)
 
     # Combine attention heads
+    #   e.g. (bs, n_heads, n, d_head) -> (bs, n, d_model)
     x = combine_heads(x)
 
     # Project outputs back to model space
@@ -210,4 +210,4 @@ def forward(
     # Merge outputs with residuals
     x = residual + x
 
-    return x
+    return x, kv_cache
