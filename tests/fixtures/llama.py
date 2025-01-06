@@ -40,7 +40,10 @@ _token_ids = [
 @pytest.fixture(scope="session")
 def config() -> ModelConfig:
     """Llama3.2-3B model config."""
-    return ll.checkpoint.load_config("Llama3.2-3B")
+
+    config = ll.checkpoint.load_config("Llama3.2-3B")
+
+    return config
 
 
 @pytest.fixture(scope="session")
@@ -83,6 +86,9 @@ def token_ids(config: ModelConfig, bs: int, n: int) -> Array:
     # Sanity check
     assert x.shape == (bs, n)
 
+    # Token ids are always int32
+    assert x.dtype == jnp.int32
+
     return x
 
 
@@ -99,9 +105,11 @@ def token_embeddings(config: ModelConfig, bs: int, n: int, torch_device, referen
     # Convert from torch to jax
     x = dlpack.from_dlpack(x.cpu())
 
+    # Convert dtype
+    x = x.astype(config.dtype)
+
     # Sanity check
     assert x.shape == (bs, n, config.d_model)
-    assert x.dtype == config.dtype
 
     return x
 
@@ -119,7 +127,7 @@ def attention_norm0(
     layer = reference_model.layers[0]
 
     # Load embeddings into torch
-    x = torch.tensor(np.array(token_embeddings), device=torch_device)
+    x = torch.tensor(np.array(token_embeddings.astype(jnp.float32)), device=torch_device)
 
     # Normalize
     x = layer.attention_norm(x)
@@ -127,9 +135,11 @@ def attention_norm0(
     # Convert from torch to jax
     x = dlpack.from_dlpack(x.cpu())
 
+    # Convert dtype
+    x = x.astype(config.dtype)
+
     # Sanity check
     assert x.shape == (bs, n, config.d_model)
-    assert x.dtype == config.dtype
 
     return x
 
@@ -149,7 +159,7 @@ def attention_output(
     layer = reference_model.layers[0]
 
     # Load embeddings into torch
-    x = torch.tensor(np.array(token_embeddings), device=torch_device)
+    x = torch.tensor(np.array(token_embeddings.astype(jnp.float32)), device=torch_device)
 
     # Preserve residuals
     residuals = x
@@ -158,7 +168,7 @@ def attention_output(
     x = layer.attention_norm(x)
 
     # Generate (n, n) mask bias term
-    m = torch.tensor(np.array(mask[:n, :n]), device=torch_device)
+    m = torch.tensor(np.array(mask[:n, :n].astype(jnp.float32)), device=torch_device)
 
     # Attention
     freqs_cis = reference_model.freqs_cis[:n]
@@ -170,9 +180,11 @@ def attention_output(
     # Convert from torch to jax
     x = dlpack.from_dlpack(x.cpu())
 
+    # Convert dtype
+    x = x.astype(config.dtype)
+
     # Sanity check
     assert x.shape == (bs, n, config.d_model)
-    assert x.dtype == config.dtype
 
     return x
 
@@ -190,7 +202,7 @@ def ffn_output(
     layer = reference_model.layers[0]
 
     # Load attention values into torch
-    x = torch.tensor(np.array(attention_output), device=torch_device)
+    x = torch.tensor(np.array(attention_output.astype(jnp.float32)), device=torch_device)
 
     # Preserve residuals
     residuals = x
@@ -207,9 +219,11 @@ def ffn_output(
     # Convert from torch to jax
     x = dlpack.from_dlpack(x.cpu())
 
+    # Convert dtype
+    x = x.astype(config.dtype)
+
     # Sanity check
     assert x.shape == (bs, n, config.d_model)
-    assert x.dtype == config.dtype
 
     return x
 
@@ -226,6 +240,9 @@ def logits(config: ModelConfig, bs: int, n: int, torch_device, reference_model: 
 
     # Convert logits from torch to jax
     x = dlpack.from_dlpack(x.cpu())
+
+    # Convert dtype
+    x = x.astype(config.dtype)
 
     # Sanity check
     assert x.shape == (bs, n, config.vocab_size)

@@ -8,7 +8,7 @@ import pickle
 from typing import Any, NamedTuple, cast
 
 from jax import Array
-from jax import numpy as jnp
+import jax.dtypes
 from jax.typing import DTypeLike
 
 from llama_jax.tokenizer import Tokenizer
@@ -90,7 +90,7 @@ def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
 
     # Defaults
     max_tokens = 512
-    dtype = jnp.float32
+    dtype = jax.dtypes.bfloat16
 
     # Load hyperparameters
     hparams_path = checkpoint_path / "params.json"

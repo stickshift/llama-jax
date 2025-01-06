@@ -1,10 +1,21 @@
 from jax import Array
+import jax.dtypes
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 
-def test_factory(config: ModelConfig, params: ModelParameters):
+def test_factory(params: ModelParameters):
+    #
+    # Givens
+    #
+
+    # I created custom config
+    config = ll.checkpoint.load_config(
+        "Llama3.2-3B",
+        dtype=jax.dtypes.bfloat16,
+    )
+
     #
     # Whens
     #
@@ -18,6 +29,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
 
     # head should be populated
     assert head.output.shape == (config.d_model, config.vocab_size)
+    assert head.output.dtype == config.dtype
 
 
 def test_forward(config: ModelConfig, params: ModelParameters, bs: int, token_embeddings: Array):

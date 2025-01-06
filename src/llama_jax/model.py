@@ -17,7 +17,7 @@ from llama_jax.head import Head
 from llama_jax.kv_cache import KVCache, MutableKVCache
 from llama_jax.layer import Layer
 from llama_jax.rope import Rope
-from llama_jax.tools import default_arg, trace
+from llama_jax.tools import default_arg
 
 __all__ = [
     "Model",

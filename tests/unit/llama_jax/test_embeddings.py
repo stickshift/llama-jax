@@ -1,10 +1,18 @@
 from jax import Array
+from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 
 
 def test_factory(config: ModelConfig, params: ModelParameters):
+    #
+    # Givens
+    #
+
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
+
     #
     # Whens
     #
@@ -18,6 +26,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
 
     # embeddings should be populated
     assert embeddings.values.shape == (config.vocab_size, config.d_model)
+    assert embeddings.values.dtype == config.dtype
 
 
 def test_forward(config: ModelConfig, params: ModelParameters, token_ids: Array, token_embeddings: Array):

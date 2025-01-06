@@ -39,7 +39,7 @@ def assert_similar_arrays(x: Array, y: Array, atol: float | None = None):
     """Asserts vectors along last dimension of x and y are similar."""
 
     # Defaults
-    atol = default_arg(atol, 0.01)
+    atol = default_arg(atol, 0.03)
 
     # Compare x and y using cosine similarity
     scores, n = similarity_scores(x, y)

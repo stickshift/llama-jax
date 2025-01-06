@@ -30,8 +30,9 @@ def forward(config: ModelConfig, state: RMSNorm, x: Array) -> Array:
 
     See https://doi.org/10.48550/arXiv.1910.07467
     """
-    # Sanity check
-    assert x.ndim == 3
+    # Validate
+    if x.ndim != 3:
+        raise ValueError(f"Unexpected shape {x.shape}. Expected (bs, n, d).")
 
     return state.weight * _norm(config, state, x)
 

@@ -5,8 +5,17 @@ import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.rms_norm import RMSNorm
 
+from tests.fixtures.jax_fixtures import assert_similar_arrays
+
 
 def test_factory(config: ModelConfig, params: ModelParameters):
+    #
+    # Givens
+    #
+
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
+
     #
     # Whens
     #
@@ -20,6 +29,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
 
     # norm should be populated
     assert norm.weight.shape == (config.d_model,)
+    assert norm.weight.dtype == config.dtype
 
 
 def test_rms_norm_shape(config: ModelConfig, bs: int, n: int):
@@ -133,4 +143,4 @@ def test_forward(config: ModelConfig, params: ModelParameters, token_embeddings:
     #
 
     # x should match expected attention_norm0
-    assert jnp.allclose(x, attention_norm0)
+    assert_similar_arrays(x, attention_norm0)

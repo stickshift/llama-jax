@@ -1,3 +1,5 @@
+import jax.dtypes
+
 import llama_jax as ll
 
 
@@ -14,7 +16,7 @@ def test_load_config():
     #
 
     # I load model config
-    config = ll.checkpoint.load_config(checkpoint)
+    config = ll.checkpoint.load_config(checkpoint, dtype=jax.dtypes.bfloat16)
 
     #
     # Thens
@@ -24,6 +26,7 @@ def test_load_config():
     assert config.max_tokens == 512
     assert config.vocab_size == 128256
     assert config.d_model == 3072
+    assert config.dtype == jax.dtypes.bfloat16
 
     # config should be hashable
     hash(config)

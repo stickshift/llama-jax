@@ -6,6 +6,13 @@ from llama_jax.checkpoint import ModelConfig
 
 def test_factory(config: ModelConfig):
     #
+    # Givens
+    #
+
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
+
+    #
     # Whens
     #
 

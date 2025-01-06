@@ -33,9 +33,9 @@ def create(config: ModelConfig, params: ModelParameters, path: str) -> FFN:
     parent_path = path.rsplit(".", 1)[0]
 
     # Note we transpose kernels so we don't need to during forward pass
-    input = params[f"{path}.w3.weight"].transpose()
-    gate = params[f"{path}.w1.weight"].transpose()
-    output = params[f"{path}.w2.weight"].transpose()
+    input = params[f"{path}.w3.weight"].transpose().astype(config.dtype)
+    gate = params[f"{path}.w1.weight"].transpose().astype(config.dtype)
+    output = params[f"{path}.w2.weight"].transpose().astype(config.dtype)
 
     return FFN(
         norm=ll.rms_norm.create(config, params, f"{parent_path}.ffn_norm"),

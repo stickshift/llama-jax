@@ -44,6 +44,7 @@ def generator(
         # Override ctor args
         nonlocal max_tokens
         max_tokens = kwargs.get("max_tokens", max_tokens)
+        assert max_tokens is not None
 
         # Remember if prompts are batched
         batched = not isinstance(prompts, str)

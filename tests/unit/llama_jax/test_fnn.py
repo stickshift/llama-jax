@@ -1,4 +1,5 @@
 from jax import Array
+from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -7,6 +8,13 @@ from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 
 def test_factory(config: ModelConfig, params: ModelParameters):
+    #
+    # Givens
+    #
+
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
+
     #
     # Whens
     #
@@ -20,8 +28,11 @@ def test_factory(config: ModelConfig, params: ModelParameters):
 
     # ffn should be populated
     assert ffn.input.shape == (config.d_model, config.d_ffn)
+    assert ffn.input.dtype == config.dtype
     assert ffn.gate.shape == (config.d_model, config.d_ffn)
+    assert ffn.gate.dtype == config.dtype
     assert ffn.output.shape == (config.d_ffn, config.d_model)
+    assert ffn.output.dtype == config.dtype
 
 
 def test_forward(

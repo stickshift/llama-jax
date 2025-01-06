@@ -1,4 +1,5 @@
 from jax import Array
+from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -9,6 +10,13 @@ from tests.fixtures.jax_fixtures import assert_similar_arrays
 
 
 def test_factory(config: ModelConfig, params: ModelParameters):
+    #
+    # Givens
+    #
+
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
+
     #
     # Whens
     #
@@ -76,6 +84,13 @@ def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings:
 
 def test_attention_mask(config: ModelConfig, n: int):
     #
+    # Givens
+    #
+
+    # I overrode config dtype
+    config = config._replace(dtype=jnp.int32)
+
+    #
     # Whens
     #
 
@@ -88,6 +103,7 @@ def test_attention_mask(config: ModelConfig, n: int):
 
     # m should be populated (max_tokens, max_tokens) w/ with zeros below the diagonal, -inf above the diagonal
     assert m.shape == (config.max_tokens, config.max_tokens)
+    assert m.dtype == config.dtype
 
 
 def test_forward(

@@ -1,4 +1,4 @@
-from jax import Array, random
+from jax import Array
 
 import llama_jax as ll
 from llama_jax.tokenizer import Tokenizer
