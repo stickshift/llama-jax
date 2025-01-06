@@ -19,8 +19,7 @@ def test_323b(key: Array, tokenizer: Tokenizer):
     config = ll.checkpoint.load_config("Llama3.2-3B")
 
     # I initialized a text generator w/ token sampling disabled and max_tokens = 3
-    key, subkey = random.split(key)
-    generator = ll.text.generator(config, key=subkey, temperature=0, max_tokens=3)
+    generator, key = ll.text.generator(config, key, temperature=0, max_tokens=3)
 
     #
     # Whens

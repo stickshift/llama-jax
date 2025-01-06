@@ -26,6 +26,7 @@ __all__ = [
     "next_token",
 ]
 
+# Module logger
 logger = logging.getLogger(__name__)
 
 
@@ -78,7 +79,6 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     return model
 
 
-@trace(logger)
 @partial(jax.jit, static_argnames=("config",))
 def forward(
     config: ModelConfig,
@@ -124,6 +124,7 @@ def forward(
 def next_token(
     logits: Array,
     key: Array,
+    *,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
