@@ -52,7 +52,7 @@ def generator(
 
 
 def _generate(
-    prompts: Sequence[str],
+    prompts: str | Sequence[str],
     *,
     config: ModelConfig,
     tokenizer: Tokenizer,
@@ -64,6 +64,9 @@ def _generate(
     max_tokens: int,
 ) -> Iterator[Sequence[str]]:
     """Generate tokens given a prompt."""
+    # Remember if prompts are batched
+    batched = not isinstance(prompts, str)
+
     # Initialize key/value cache
     kv_cache = ll.kv_cache.create(config)
 
@@ -86,7 +89,8 @@ def _generate(
             break
 
         # Yield next token
-        yield tokenizer.decode(next_token_id)
+        tokens = tokenizer.decode(next_token_id)
+        yield tokens if batched else tokens[0]
 
         # Subsequent iterations process one token at a time
         x = next_token_id

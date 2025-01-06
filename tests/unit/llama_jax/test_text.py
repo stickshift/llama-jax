@@ -9,26 +9,33 @@ def test_323b(key: Array, tokenizer: Tokenizer):
     # Givens
     #
 
+    # Sequence prompts
+    prompts = (
+        "A B C",
+        "one two three",
+    )
+
     # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
 
-    # I initialized a text generator w/ token sampling disabled
+    # I initialized a text generator w/ token sampling disabled and max_tokens = 3
     key, subkey = random.split(key)
-    generator = ll.text.generator(config, key=subkey, temperature=0)
-
-    # Greek prompt
-    prompts = ["alpha beta gamma"]
+    generator = ll.text.generator(config, key=subkey, temperature=0, max_tokens=3)
 
     #
     # Whens
     #
 
-    # I generate next token
-    tokens = next(generator(prompts))
+    # I generate tokens
+    for tokens in generator(prompts):
+        prompts = tuple(p + t for p, t in zip(prompts, tokens))
 
     #
     # Thens
     #
 
-    # token should be "delta"
-    assert tokens[0].strip() == "delta"
+    # prompts should be
+    assert prompts == (
+        "A B C D E F",
+        "one two three four five six",
+    )

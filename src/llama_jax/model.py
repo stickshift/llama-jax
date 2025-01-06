@@ -83,11 +83,11 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
 def forward(
     config: ModelConfig,
     state: Model,
-    tokens: Array,
+    token_ids: Array,
     *,
     kv_cache: KVCache | None = None,
 ) -> Array | tuple[Array, KVCache]:
-    """Transform tokens into next token logits."""
+    """Transform token_ids into next token logits."""
     # Remember if cache was provided
     external_cache = kv_cache is not None
 
@@ -95,10 +95,10 @@ def forward(
     kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config))
 
     # Sanity check
-    assert tokens.ndim == 2
+    assert token_ids.ndim == 2
 
     # Map tokens to embeddings
-    x = ll.embeddings.forward(config, state.embeddings, tokens)
+    x = ll.embeddings.forward(config, state.embeddings, token_ids)
 
     # Create mutable kv cache
     kvc = MutableKVCache(kv_cache)
