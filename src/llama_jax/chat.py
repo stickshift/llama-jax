@@ -1,10 +1,19 @@
-from collections.abc import Mapping, Sequence
-from typing import NamedTuple
+from collections.abc import Iterator, Mapping, Sequence
+from functools import partial
+from typing import Any, Callable, NamedTuple, cast
+
+from jax import Array, random
+
+import llama_jax as ll
+from llama_jax.checkpoint import ModelConfig, TrainingLevel
+from llama_jax.model import Model
+from llama_jax.tools import default_arg
 
 __all__ = [
-    "CompletionResponse",
+    "CompletionEvent",
     "Message",
     "MessageLike",
+    "generator",
 ]
 
 
@@ -19,10 +28,136 @@ class Message(NamedTuple):
 MessageLike = Mapping[str, str] | Message
 
 
-class CompletionResponse(NamedTuple):
-    """Completion response."""
+class CompletionEvent(NamedTuple):
+    """Chat completion event."""
 
     messages: Sequence[Message]
+    delta: Message | None
+
+
+ChatGenerator = Callable[[Sequence[MessageLike]], Iterator[CompletionEvent]]
+
+ROLE = "assistant"
+
+
+def generator(
+    config: ModelConfig,
+    key: Array,
+    *,
+    model: Model | None = None,
+    temperature: float | None = None,
+    top_k: int | None = None,
+    top_p: float | None = None,
+    max_tokens: int | None = None,
+    stream: bool | None = None,
+) -> tuple[ChatGenerator, Array]:
+    """Create a chat generator."""
+    # Defaults
+    max_tokens = default_arg(max_tokens, 32)
+    stream = default_arg(stream, False)
+
+    # Validate
+    if config.training is not TrainingLevel.INSTRUCT:
+        raise ValueError("Chat generator requires INSTRUCT model.")
+
+    # Initialize tokenizer
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+
+    # Initialize model if not provided
+    if model is None:
+        model = ll.model.create(config, ll.checkpoint.load_parameters(config))
+
+    # Define generator callable
+    def wrapper(
+        input_messages: Sequence[MessageLike],
+        *,
+        key: Array,
+        **kwargs: Any,
+    ) -> Iterator[CompletionEvent]:
+        # Override ctor args
+        nonlocal max_tokens, stream
+        max_tokens = kwargs.get("max_tokens", max_tokens)
+        assert max_tokens is not None
+        stream = kwargs.get("stream", stream)
+        assert stream is not None
+
+        # Validate input messages
+        messages = _validate_messages(input_messages)
+
+        # Render prompt and split into token ids
+        prompt = _render_prompt(messages)
+        token_ids = tokenizer.encode(prompt)
+
+        # Initialize key/value cache
+        kv_cache = ll.kv_cache.create(config)
+
+        # Initialize x with entire sequence on first pass
+        x = token_ids
+
+        content = ""
+
+        # Sample up to max tokens
+        for _ in range(max_tokens):
+            # Transform x into logits
+            logits, kv_cache = ll.model.forward(config, model, x, kv_cache=kv_cache)
+
+            # Sample next token
+            next_token_id, key = ll.model.next_token(logits, key, temperature=temperature, top_k=top_k, top_p=top_p)
+
+            # Break on stop tokens
+            if next_token_id in tokenizer.stop_tokens:
+                break
+
+            # Decode next token
+            token = tokenizer.decode(next_token_id)[0]
+
+            # Append to final response
+            content += token
+
+            if stream:
+                yield CompletionEvent(
+                    messages=_response_messages(messages, content),
+                    delta=_delta_message(token),
+                )
+
+            # Subsequent iterations process one token at a time
+            x = next_token_id
+
+        # Final event
+        yield CompletionEvent(messages=_response_messages(messages, content), delta=None)
+
+    # Generate subkey to be consumed by wrapper
+    key, subkey = random.split(key)
+    wrapper = partial(wrapper, key=subkey)
+
+    return wrapper, key
+
+
+def _validate_messages(messages: Sequence[MessageLike]) -> Sequence[Message]:
+    validated = tuple(Message(**m) if isinstance(m, dict) else m for m in messages)
+    return cast(Sequence[Message], validated)
+
+
+def _render_prompt(messages: Sequence[Message]) -> str:
+    """Render messages as Llama prompt."""
+    prompt = ""
+
+    for message in messages:
+        prompt += f"<|start_header_id|>{message.role}<|end_header_id|>\n\n"
+        prompt += message.content
+        prompt += "<|eot_id|>\n"
+
+    prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
+
+    return prompt
+
+
+def _response_messages(messages: Sequence[Message], content: str) -> Sequence[Message]:
+    return *messages, Message(role=ROLE, content=content)
+
+
+def _delta_message(token: str) -> Message:
+    return Message(role=ROLE, content=token)
 
 
 #

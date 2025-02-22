@@ -22,10 +22,18 @@ extend-exclude = [
   "src/llama_jax/benchmarks/llama_models.py",
 ]
 
+# format
+# ~~~~
+[format]
+
+preview = true
+
 # lint
 # ~~~~
 
 [lint]
+
+preview = true
 
 select = [
   "ARG",  # flake8-unused-arguments

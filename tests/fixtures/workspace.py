@@ -32,7 +32,7 @@ def workspace_env(workspace_path: Path):
 
 @pytest.fixture
 def build_path(workspace_path: Path) -> Path:
-    return workspace_path / ".build"
+    return workspace_path / "build"
 
 
 @pytest.fixture

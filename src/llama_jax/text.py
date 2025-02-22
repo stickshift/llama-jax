@@ -7,7 +7,7 @@ from typing import Any, Callable
 from jax import Array, random
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig
+from llama_jax.checkpoint import ModelConfig, TrainingLevel
 from llama_jax.model import Model
 from llama_jax.tools import default_arg
 
@@ -31,6 +31,10 @@ def generator(
     """Create a text generator."""
     # Defaults
     max_tokens = default_arg(max_tokens, 32)
+
+    # Validate
+    if config.training is not TrainingLevel.PRETRAINED:
+        raise ValueError("Chat generator requires PRETRAINED model.")
 
     # Initialize tokenizer
     tokenizer = ll.checkpoint.load_tokenizer(config)
