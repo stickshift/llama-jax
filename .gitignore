@@ -1,11 +1,32 @@
-.build
-.vscode
-.idea
+# Compiled output
+build/
+dist/
+coverage/
+tmp/
+
+# Dependencies
+node_modules
 .venv
-.env
+
+# IDE - VSCode / Cursor
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Generated files
+**/*.egg-info
+.nx
+*.pyc
 __pycache__
-.ipynb_checkpoints
 .ruff_cache
 .pytest_cache
-.jupyter_cache
-.coverage
+.mypy_cache
+.eslintcache
+.ipynb_checkpoints
+.env

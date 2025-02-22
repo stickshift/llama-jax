@@ -56,8 +56,9 @@ RM := rm -rf
 
 OUTPUT_DIRS :=
 
-BUILD_DIR := $(PROJECT_ROOT)/.build
-OUTPUT_DIRS := $(OUTPUT_DIRS) $(BUILD_DIR)
+BUILD_DIR := $(PROJECT_ROOT)/build
+DIST_DIR := $(PROJECT_ROOT)/dist
+OUTPUT_DIRS := $(OUTPUT_DIRS) $(BUILD_DIR) $(DIST_DIR)
 
 
 #-------------------------------------------------------------------------------
@@ -74,14 +75,6 @@ VENV := $(VENV_ROOT)/bin/activate
 #-------------------------------------------------------------------------------
 
 PYTEST_OPTS ?= 
-
-
-#-------------------------------------------------------------------------------
-# Linters
-#-------------------------------------------------------------------------------
-
-RUFF_CHECK_OPTS ?= --preview
-RUFF_FORMAT_OPTS ?= --preview
 
 
 #-------------------------------------------------------------------------------
@@ -111,7 +104,7 @@ all: venv
 # Output Dirs
 #-------------------------------------------------------------------------------
 
-$(BUILD_DIR):
+$(OUTPUT_DIRS):
 	mkdir -p $@
 
 
@@ -153,17 +146,17 @@ PHONIES := $(PHONIES) tests coverage
 # Linters
 #-------------------------------------------------------------------------------
 
-lint: venv
+check: venv
 	source $(VENV) && mypy
-	uvx ruff check $(RUFF_CHECK_OPTS)
-	uvx ruff format --check $(RUFF_FORMAT_OPTS)
+	uvx ruff check
+	uvx ruff format --check
 
-lint-fix: venv
-	uvx ruff format $(RUFF_FORMAT_OPTS)
-	uvx ruff check --fix $(RUFF_CHECK_OPTS)
-	make lint
+fix: venv
+	uvx ruff format
+	uvx ruff check --fix
+	make check
 
-PHONIES := $(PHONIES) lint-fix lint
+PHONIES := $(PHONIES) check fix
 
 
 #-------------------------------------------------------------------------------
@@ -172,6 +165,9 @@ PHONIES := $(PHONIES) lint-fix lint
 
 clean-cache:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type d -name ".ruff_cache" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 
 clean-venv:
 	$(RM) "$(VENV_ROOT)"
