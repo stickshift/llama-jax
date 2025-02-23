@@ -14,6 +14,7 @@ from typing import Callable, NamedTuple
 from IPython.display import display
 from jax import numpy as jnp
 from jax.nn import softmax
+import numpy as np
 from pandas import DataFrame
 import requests
 from tqdm.auto import tqdm
@@ -275,9 +276,10 @@ def generator(
     bs: int | None = None,
 ) -> AnswerGenerator:
     """Create a text generator."""
-    # Defaults
+    
+    # Default to zero-shot w/ batch size of 8. See batch size experiments for rationale.
     n_shots = default_arg(n_shots, 0)
-    bs = default_arg(bs, 1)
+    bs = default_arg(bs, 8)
 
     # Initialize tokenizer
     tokenizer = ll.checkpoint.load_tokenizer(config)
@@ -324,7 +326,8 @@ def _generate(
 
         # Drop entire batch if one of the prompts exceeds max tokens
         if token_ids.shape[1] >= config.max_tokens:
-            logger.warning(f"Batch {i} exceeds max tokens: {token_ids.shape[1]} >= {config.max_tokens}. Dropping.")
+            question = batch[np.argmax([len(q.question) for q in batch])]
+            logger.warning(f"Question {question.qid} exceeds max tokens: {token_ids.shape[1]} >= {config.max_tokens}. Dropping entire batch.")
             continue
 
         # Transform token ids into next token logits
