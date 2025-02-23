@@ -220,48 +220,54 @@ def generate_prompt(
             role="system",
             content=(
                 f"You are a student answering multiple choice questions on an exam. Each question "
-                f"has 4 options: A, B, C, D. There will be {n_shots} example questions followed by "
-                f"a test question. Your job is to answer the test question. Your answer MUST be one "
-                f"of {{A, B, C, D}}."
+                f"has 4 options: A, B, C, D. Your answer MUST be one of {{A, B, C, D}}."
             ),
         )
     )
 
-    content = ""
-
-    # Header
-    content += "# Instructions\n\n"
-    content += f"The following are multiple choice questions (with answers) about {question.category}.\n\n"
-
     # Examples
-    for i, row in enumerate(selected_examples):
-        content += (
-            f"# Example {i}\n\n"
-            f"{row.question}\n"
-            f"\n"
-            f"A) {row.A}\n"
-            f"B) {row.B}\n"
-            f"C) {row.C}\n"
-            f"D) {row.D}\n"
-            f"\n"
-            f"Answer: {row.answer}\n\n"
+    for row in selected_examples:
+        # Question
+        messages.append(
+            Message(
+                role="user",
+                content=(
+                    f"{row.question}\n"
+                    f"\n"
+                    f"A) {row.A}\n"
+                    f"B) {row.B}\n"
+                    f"C) {row.C}\n"
+                    f"D) {row.D}\n"
+                ),
+            ),
+        )
+        
+        # Answer
+        messages.append(
+            Message(
+                role="assistant",
+                content=(
+                    f"{row.answer}"
+                ),
+            ),
         )
 
+
     # Question
-    content += (
-        f"# Question\n\n"
-        f"{question.question}\n"
-        f"\n"
-        f"A) {question.A}\n"
-        f"B) {question.B}\n"
-        f"C) {question.C}\n"
-        f"D) {question.D}\n"
-        f"\n"
-        f"Answer: "
+    messages.append(
+        Message(
+            role="user",
+            content=(
+                f"{question.question}\n"
+                f"\n"
+                f"A) {question.A}\n"
+                f"B) {question.B}\n"
+                f"C) {question.C}\n"
+                f"D) {question.D}\n"
+            ),
+        ),
     )
-
-    messages.append(Message(role="user", content=content))
-
+    
     return messages
 
 
