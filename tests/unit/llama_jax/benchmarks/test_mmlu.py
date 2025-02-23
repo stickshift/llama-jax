@@ -1,7 +1,6 @@
 from pathlib import Path
 from random import sample
 
-import pytest
 from pytest import approx
 
 import llama_jax as ll
@@ -113,7 +112,7 @@ def test_generate_answer(mmlu_dataset_path: Path):
     #
 
     # I generate answer to question
-    answer = next(generator([question]))
+    answer = next(generator([question]))[0]
 
     #
     # Thens
@@ -148,19 +147,19 @@ def test_evaluate_generator(mmlu_dataset_path: Path):
 
     # I loaded dataset
     dataset = load_dataset(mmlu_dataset_path)
-    
-    # I randomly sample 10 questions
+
+    # I randomly sample questions
     questions = sample(dataset.questions, k=10)
 
     # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # I initialized mmlu generator w/ 0-shots
-    generator = ll.benchmarks.mmlu.generator(config, n_shots=0)
-
     #
     # Whens
     #
+
+    # I create 0-shot generator that answers questions 3 at a time
+    generator = ll.benchmarks.mmlu.generator(config, n_shots=0, bs=3)
 
     # I evaluate generator
     score = evaluate_generator(generator, questions=questions)

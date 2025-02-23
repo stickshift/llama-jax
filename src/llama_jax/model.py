@@ -91,7 +91,7 @@ def forward(
     # Validate
     if any(len(x) > config.max_tokens for x in token_ids):
         raise ValueError(f"Number of tokens exceed config.max_tokens {config.max_tokens}")
-    
+
     # Remember if cache was provided
     external_cache = kv_cache is not None
 

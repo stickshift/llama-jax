@@ -1,18 +1,17 @@
 from jax import Array
 
 import llama_jax as ll
-from llama_jax.tokenizer import Tokenizer
 
 
-def test_323b(key: Array, tokenizer: Tokenizer):
+def test_323b(key: Array):
     #
     # Givens
     #
 
-    # Sequence prompts
+    # Sequence prompts of mixed length
     prompts = (
         "A B C",
-        "one two three",
+        "one two three four",
     )
 
     # I loaded config for 3.2 3B checkpoint
@@ -36,5 +35,5 @@ def test_323b(key: Array, tokenizer: Tokenizer):
     # prompts should be
     assert prompts == (
         "A B C D E F",
-        "one two three four five six",
+        "one two three four five six seven",
     )
