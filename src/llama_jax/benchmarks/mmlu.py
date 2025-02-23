@@ -311,27 +311,26 @@ def _generate(
     examples: Questions | None,
 ) -> Iterator[Answer]:
     # Look up token ids for MMLU options A, B, C, D
-    mmlu_token_ids = {option: tokenizer.encode(option, bos=False)[0] for option in OPTIONS}
+    mmlu_token_ids = {option: tokenizer.encode(option, bos=False).item() for option in OPTIONS}
+
+    # Initialize key/value cache
+    kv_cache = ll.kv_cache.create(config)
 
     # Generate answers to each question
     for question in questions:
         # Generate prompt
         messages = generate_prompt(question, n_shots=n_shots, examples=examples)
-        prompt = ll.chat.render_prompt(config, messages)
+        prompt = ll.chat.render_prompt(messages)
 
         # Split prompt into tokens
         token_ids = tokenizer.encode(prompt)
         logger.debug(f"Split prompt into {len(token_ids)} token ids")
 
-        # Stack token ids into batch size of 1
-        token_ids = jnp.reshape(token_ids, (1, *token_ids.shape))
-
         # Transform token ids into next token logits
-        output = ll.model.forward(config, model, token_ids)
-        logits = output.logits[0]
+        logits, kv_cache = ll.model.forward(config, model, token_ids, kv_cache=kv_cache)
 
         # Extract logits for MMLU options
-        mmlu_logits = jnp.array([logits[mmlu_token_ids[option]] for option in OPTIONS])
+        mmlu_logits = jnp.array([logits[0][mmlu_token_ids[option]] for option in OPTIONS])
 
         # Convert to scores (probability distribution over options)
         scores = softmax(mmlu_logits, axis=-1)

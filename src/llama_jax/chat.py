@@ -85,7 +85,7 @@ def generator(
         messages = _validate_messages(input_messages)
 
         # Render prompt and split into token ids
-        prompt = _render_prompt(messages)
+        prompt = render_prompt(messages)
         token_ids = tokenizer.encode(prompt)
 
         # Initialize key/value cache
@@ -133,12 +133,7 @@ def generator(
     return wrapper, key
 
 
-def _validate_messages(messages: Sequence[MessageLike]) -> Sequence[Message]:
-    validated = tuple(Message(**m) if isinstance(m, dict) else m for m in messages)
-    return cast(Sequence[Message], validated)
-
-
-def _render_prompt(messages: Sequence[Message]) -> str:
+def render_prompt(messages: Sequence[Message]) -> str:
     """Render messages as Llama prompt."""
     prompt = ""
 
@@ -150,6 +145,11 @@ def _render_prompt(messages: Sequence[Message]) -> str:
     prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
 
     return prompt
+
+
+def _validate_messages(messages: Sequence[MessageLike]) -> Sequence[Message]:
+    validated = tuple(Message(**m) if isinstance(m, dict) else m for m in messages)
+    return cast(Sequence[Message], validated)
 
 
 def _response_messages(messages: Sequence[Message], content: str) -> Sequence[Message]:

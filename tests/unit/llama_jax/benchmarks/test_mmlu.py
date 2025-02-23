@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from pytest import approx
 
 import llama_jax as ll
 from llama_jax.benchmarks.mmlu import (
@@ -91,8 +92,7 @@ def test_prompt_zero_shot(mmlu_dataset_path: Path):
     assert messages[-1].role == "user"
 
 
-@pytest.mark.wip
-def test_generate_answers(mmlu_dataset_path: Path):
+def test_generate_answer(mmlu_dataset_path: Path):
     #
     # Givens
     #
@@ -101,11 +101,11 @@ def test_generate_answers(mmlu_dataset_path: Path):
     dataset = load_dataset(mmlu_dataset_path)
     question = select_question(dataset.questions, qid=7779)
 
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
+    # I loaded config for 3.2 3B Instruct checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # I initialized a mmlu generator
-    generator = ll.benchmarks.mmlu.generator(config)
+    # I initialized mmlu generator w/ 0-shots
+    generator = ll.benchmarks.mmlu.generator(config, n_shots=0)
 
     #
     # Whens
@@ -121,26 +121,9 @@ def test_generate_answers(mmlu_dataset_path: Path):
     # answer should be populated
     assert answer.qid == question.qid
     assert answer.expected == "B"
-    assert isinstance(answer.actual, str)
     assert all(option in answer.scores for option in OPTIONS)
+    assert isinstance(answer.actual, str)
     assert isinstance(answer.correct, bool)
-
-
-@pytest.mark.wip
-def test_evaluate(mmlu_dataset_path: Path):
-    #
-    # Givens
-    #
-
-    # I loaded dataset and looked up question 7779
-    dataset = load_dataset(mmlu_dataset_path)
-    question = select_question(dataset.questions, qid=7779)
-
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # I initialized a mmlu generator
-    generator = ll.benchmarks.mmlu.generator(config)
 
     #
     # Whens
@@ -153,5 +136,5 @@ def test_evaluate(mmlu_dataset_path: Path):
     # Thens
     #
 
-    # score should be populated
-    assert 0.0 <= score <= 100.0
+    # score should be perfect
+    assert score == approx(100)
