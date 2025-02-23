@@ -1,4 +1,5 @@
 from pathlib import Path
+from random import sample
 
 import pytest
 from pytest import approx
@@ -138,3 +139,35 @@ def test_generate_answer(mmlu_dataset_path: Path):
 
     # score should be perfect
     assert score == approx(100)
+
+
+def test_evaluate_generator(mmlu_dataset_path: Path):
+    #
+    # Givens
+    #
+
+    # I loaded dataset
+    dataset = load_dataset(mmlu_dataset_path)
+    
+    # I randomly sample 10 questions
+    questions = sample(dataset.questions, k=10)
+
+    # I loaded config for 3.2 3B Instruct checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
+
+    # I initialized mmlu generator w/ 0-shots
+    generator = ll.benchmarks.mmlu.generator(config, n_shots=0)
+
+    #
+    # Whens
+    #
+
+    # I evaluate generator
+    score = evaluate_generator(generator, questions=questions)
+
+    #
+    # Thens
+    #
+
+    # score should be populated
+    assert 0.0 <= score <= 100.0

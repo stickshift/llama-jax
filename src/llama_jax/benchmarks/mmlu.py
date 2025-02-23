@@ -313,9 +313,6 @@ def _generate(
     # Look up token ids for MMLU options A, B, C, D
     mmlu_token_ids = {option: tokenizer.encode(option, bos=False).item() for option in OPTIONS}
 
-    # Initialize key/value cache
-    kv_cache = ll.kv_cache.create(config)
-
     # Generate answers to each question
     for question in questions:
         # Generate prompt
@@ -324,10 +321,15 @@ def _generate(
 
         # Split prompt into tokens
         token_ids = tokenizer.encode(prompt)
-        logger.debug(f"Split prompt into {len(token_ids)} token ids")
+        n_tokens = len(token_ids[0])
+        logger.debug(f"Split question {question.qid} into {n_tokens} token ids")
+
+        if n_tokens > config.max_tokens:
+            logger.warning(f"Question {question.qid} exceeds max tokens {config.max_tokens}. Dropping.")
+            continue
 
         # Transform token ids into next token logits
-        logits, kv_cache = ll.model.forward(config, model, token_ids, kv_cache=kv_cache)
+        logits = ll.model.forward(config, model, token_ids)
 
         # Extract logits for MMLU options
         mmlu_logits = jnp.array([logits[0][mmlu_token_ids[option]] for option in OPTIONS])
