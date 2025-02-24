@@ -219,8 +219,10 @@ def generate_prompt(
         Message(
             role="system",
             content=(
-                f"You are a student answering multiple choice questions on an exam. Each question "
-                f"has 4 options: A, B, C, D. Your answer MUST be one of {{A, B, C, D}}."
+                f"You are an expert answering multiple choice questions about {question.category}. Each question "
+                f"has 4 options: A, B, C, D. The prompt will contain {n_shots} example questions with correct answers "
+                f"followed by a final question. Your job is to answer the final question. Your answer MUST be one "
+                f"of: A, B, C, D."
             ),
         )
     )
@@ -323,7 +325,7 @@ def _generate(
     batches = [questions[i : i + bs] for i in range(0, len(questions), bs)]
 
     # Generate answers for each batch
-    for i, batch in enumerate(batches):
+    for batch in batches:
         # Generate prompts
         prompts = [ll.chat.render_prompt(generate_prompt(q, n_shots=n_shots, examples=examples)) for q in batch]
 
