@@ -47,13 +47,13 @@ def forward(config: ModelConfig, state: Head, x: Array, position_mask: Array) ->
 
     # Use last "real" embedding to represent the entire sequence.
 
-    # Start with fixed lengths for all batches
+    # Start with fixed lengths for all sequences
     fixed_lengths = jnp.full(x.shape[0], fill_value=x.shape[1])
 
-    # Calculate custom lengths per batch w/o padding
+    # Calculate custom lengths per sequence w/o padding
     padded_lengths = jnp.sum(position_mask, axis=-1)
 
-    # Select between fixed and padded lengths using jnp.where to comply with jax compiler
+    # Use padded lengths if the last position in any sequence is padded
     condition = jnp.any(jnp.take(position_mask, -1, axis=-1) == 0)
     lengths = jnp.where(condition, padded_lengths, fixed_lengths)
 
