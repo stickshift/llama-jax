@@ -64,4 +64,8 @@ dev-dependencies = [
     "pytest-cov>=6.0.0",
     "pytest>=8.3.3",
     "python-dotenv>=1.0.1",
+    "rich>=13.9.4",
+    "seaborn>=0.13.2",
+    "transformers>=4.49.0",
+    "accelerate>=1.4.0",
 ]

@@ -13,9 +13,8 @@ from typing import Callable, NamedTuple
 
 from IPython.display import display
 from jax import numpy as jnp
-from jax import random
 from jax.nn import softmax
-from jax.typing import ArrayLike
+import numpy as np
 from pandas import DataFrame
 import requests
 from tqdm.auto import tqdm
@@ -220,66 +219,57 @@ def generate_prompt(
         Message(
             role="system",
             content=(
-                f"You are a student answering multiple choice questions on an exam. Each question "
-                f"has 4 options: A, B, C, D. There will be {n_shots} example questions followed by "
-                f"a test question. Your job is to answer the test question. Your answer MUST be one "
-                f"of {{A, B, C, D}}."
+                f"You are an expert answering multiple choice questions about {question.category}. Each question "
+                f"has 4 options: A, B, C, D. The prompt will contain {n_shots} example questions with correct answers "
+                f"followed by a final question. Your job is to answer the final question. Your answer MUST be one "
+                f"of: A, B, C, D."
             ),
         )
     )
 
-    content = ""
-
-    # Header
-    content += "# Instructions\n\n"
-    content += f"The following are multiple choice questions (with answers) about {question.category}.\n\n"
-
     # Examples
-    for i, row in enumerate(selected_examples):
-        content += (
-            f"# Example {i}\n\n"
-            f"{row.question}\n"
-            f"\n"
-            f"A) {row.A}\n"
-            f"B) {row.B}\n"
-            f"C) {row.C}\n"
-            f"D) {row.D}\n"
-            f"\n"
-            f"Answer: {row.answer}\n\n"
+    for row in selected_examples:
+        # Question
+        messages.append(  # noqa: FURB113
+            Message(
+                role="user",
+                content=(f"{row.question}\n\nA) {row.A}\nB) {row.B}\nC) {row.C}\nD) {row.D}\n"),
+            ),
+        )
+
+        # Answer
+        messages.append(
+            Message(
+                role="assistant",
+                content=(f"{row.answer}"),
+            ),
         )
 
     # Question
-    content += (
-        f"# Question\n\n"
-        f"{question.question}\n"
-        f"\n"
-        f"A) {question.A}\n"
-        f"B) {question.B}\n"
-        f"C) {question.C}\n"
-        f"D) {question.D}\n"
-        f"\n"
-        f"Answer: "
+    messages.append(
+        Message(
+            role="user",
+            content=(f"{question.question}\n\nA) {question.A}\nB) {question.B}\nC) {question.C}\nD) {question.D}\n"),
+        ),
     )
-
-    messages.append(Message(role="user", content=content))
 
     return messages
 
 
-AnswerGenerator = Callable[[Questions], Iterator[Answer]]
+AnswerGenerator = Callable[[Questions], Iterator[Sequence[Answer]]]
 
 
 def generator(
     config: ModelConfig,
     model: Model | None = None,
-    key: ArrayLike | None = None,
     n_shots: int | None = None,
     examples: Questions | None = None,
+    bs: int | None = None,
 ) -> AnswerGenerator:
-    """Create a text generator."""
-    # Defaults
-    key = default_arg(key, default_factory=partial(random.key, 42))
+    """Generate answers to questions."""
+    # Default to zero-shot w/ batch size of 8. See batch size experiments for rationale.
     n_shots = default_arg(n_shots, 0)
+    bs = default_arg(bs, 8)
 
     # Initialize tokenizer
     tokenizer = ll.checkpoint.load_tokenizer(config)
@@ -294,9 +284,9 @@ def generator(
         config=config,
         tokenizer=tokenizer,
         model=model,
-        key=key,
         n_shots=n_shots,
         examples=examples,
+        bs=bs,
     )
 
 
@@ -306,66 +296,75 @@ def _generate(
     config: ModelConfig,
     tokenizer: Tokenizer,
     model: Model,
-    key: ArrayLike,
     n_shots: int,
     examples: Questions | None,
-) -> Iterator[Answer]:
+    bs: int,
+) -> Iterator[Sequence[Answer]]:
     # Look up token ids for MMLU options A, B, C, D
-    mmlu_token_ids = {option: tokenizer.encode(option, bos=False)[0] for option in OPTIONS}
+    mmlu_token_ids = jnp.array([tokenizer.encode(option, bos=False)[0].item() for option in OPTIONS])
 
-    # Generate answers to each question
-    for question in questions:
-        # Generate prompt
-        messages = generate_prompt(question, n_shots=n_shots, examples=examples)
-        prompt = ll.chat.render_prompt(config, messages)
+    # Batch questions
+    batches = [questions[i : i + bs] for i in range(0, len(questions), bs)]
 
-        # Split prompt into tokens
-        token_ids = tokenizer.encode(prompt)
-        logger.debug(f"Split prompt into {len(token_ids)} token ids")
+    # Generate answers for each batch
+    for batch in batches:
+        # Generate prompts
+        prompts = [ll.chat.render_prompt(generate_prompt(q, n_shots=n_shots, examples=examples)) for q in batch]
 
-        # Stack token ids into batch size of 1
-        token_ids = jnp.reshape(token_ids, (1, *token_ids.shape))
+        # Split prompts into tokens
+        token_ids, position_mask = tokenizer.encode(prompts)
+
+        # Drop entire batch if one of the prompts exceeds max tokens
+        if token_ids.shape[1] >= config.max_tokens:
+            question = batch[np.argmax([len(q.question) for q in batch])]
+            logger.warning(
+                f"Question {question.qid} exceeds max tokens: {token_ids.shape[1]} >= {config.max_tokens}. Dropping entire batch."
+            )
+            continue
 
         # Transform token ids into next token logits
-        output = ll.model.forward(config, model, token_ids)
-        logits = output.logits[0]
+        logits = ll.model.forward(config, model, token_ids, position_mask)
 
         # Extract logits for MMLU options
-        mmlu_logits = jnp.array([logits[mmlu_token_ids[option]] for option in OPTIONS])
+        mmlu_logits = logits.take(mmlu_token_ids, axis=-1)
 
         # Convert to scores (probability distribution over options)
         scores = softmax(mmlu_logits, axis=-1)
 
-        # Map options to scores
-        scores = {option: scores[i] for i, option in enumerate(OPTIONS)}
+        # Calculate answers
+        actuals = [OPTIONS[i] for i in jnp.argmax(scores, axis=-1)]
 
-        # Convert scores back to floats
-        scores = {k: v.item() for k, v in scores.items()}
-
-        # Calculate answer
-        actual = max(scores, key=scores.get)
-
-        # Yield answer
-        yield Answer(
-            qid=question.qid,
-            expected=question.answer,
-            actual=actual,
-            scores=scores,
-            correct=(actual == question.answer),
+        # Construct answers
+        answers = tuple(
+            Answer(
+                qid=q.qid,
+                expected=q.answer,
+                actual=actuals[i],
+                scores={option: scores[i][j].item() for j, option in enumerate(OPTIONS)},
+                correct=(actuals[i] == q.answer),
+            )
+            for i, q in enumerate(batch)
         )
+
+        yield answers
 
 
 def evaluate_generator(
     generator: AnswerGenerator,
     *,
     questions: Questions,
+    progress: tqdm | None = None,
 ) -> float:
     """Evaluate generator on questions."""
     # Generate answers
-    answers = tuple(generator(questions))
+    answers = ()
+    for batch in generator(questions):
+        answers += batch
+        if progress is not None:
+            progress.update(len(batch))
 
-    # Calculate score
+    # Calculate scores
     correct_answers = tuple(a for a in answers if a.correct)
-    score = 100 * len(correct_answers) / len(answers)
+    score = 100 * len(correct_answers) / len(questions)
 
     return score

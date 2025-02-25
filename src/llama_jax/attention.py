@@ -14,7 +14,6 @@ from llama_jax.rope import Rope
 
 __all__ = [
     "Attention",
-    "attention_mask",
     "combine_heads",
     "create",
     "forward",
@@ -115,26 +114,11 @@ def combine_heads(x: Array) -> Array:
     return y
 
 
-def attention_mask(config: ModelConfig) -> Array:
-    """Compute reusable (n, n) causal attention mask."""
-    # Hyperparameters
-    n = config.max_tokens
-    dtype = config.dtype
-
-    # Create boolean mask w/ main diagonal and below set to False
-    mask = ~jnp.tril(jnp.ones((n, n), dtype=jnp.bool_))
-
-    # Apply mask to fill array with -inf, 0 otherwise
-    m = jnp.where(mask, -jnp.inf, 0)
-
-    # Apply dtype
-    m = m.astype(dtype)
-
-    return m
-
-
 def attention(config: ModelConfig, q: Array, k: Array, v: Array, m: Array) -> Array:
     """Compute attention in parallel across all heads."""
+    # Sanity check
+    assert q.ndim == k.ndim == v.ndim == m.ndim
+
     # Attention scores
     scores = softmax(q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + m, axis=-1)
 
@@ -194,8 +178,11 @@ def forward(
     q = ll.rope.rotate(rope, q, positions=q_positions)
     k = ll.rope.rotate(rope, k, positions=k_positions)
 
-    # Generate (q, k) mask bias term
-    m = mask[(n_keys - n_queries) : n_keys, :n_keys]
+    # Generate (bs, q, k) mask bias term
+    m = mask[:, (n_keys - n_queries) : n_keys, :n_keys]
+
+    # Broadcast m to (bs, 1, q, k) to be compatible with split q, k, v
+    m = m[:, None, :, :]
 
     # Compute attention for all heads in parallel
     x = attention(config, q, k, v, m)

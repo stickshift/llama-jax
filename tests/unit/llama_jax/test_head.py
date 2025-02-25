@@ -32,7 +32,7 @@ def test_factory(params: ModelParameters):
     assert head.output.dtype == config.dtype
 
 
-def test_forward(config: ModelConfig, params: ModelParameters, bs: int, token_embeddings: Array):
+def test_forward(config: ModelConfig, params: ModelParameters, bs: int, token_embeddings: Array, position_mask: Array):
     #
     # Givens
     #
@@ -48,7 +48,7 @@ def test_forward(config: ModelConfig, params: ModelParameters, bs: int, token_em
     #
 
     # I transform embeddings into token logits
-    y = ll.head.forward(config, head, x)
+    y = ll.head.forward(config, head, x, position_mask)
 
     #
     # Thens

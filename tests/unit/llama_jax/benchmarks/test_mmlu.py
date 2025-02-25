@@ -1,6 +1,7 @@
 from pathlib import Path
+from random import sample
 
-import pytest
+from pytest import approx
 
 import llama_jax as ll
 from llama_jax.benchmarks.mmlu import (
@@ -91,8 +92,7 @@ def test_prompt_zero_shot(mmlu_dataset_path: Path):
     assert messages[-1].role == "user"
 
 
-@pytest.mark.wip
-def test_generate_answers(mmlu_dataset_path: Path):
+def test_generate_answer(mmlu_dataset_path: Path):
     #
     # Givens
     #
@@ -101,18 +101,18 @@ def test_generate_answers(mmlu_dataset_path: Path):
     dataset = load_dataset(mmlu_dataset_path)
     question = select_question(dataset.questions, qid=7779)
 
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
+    # I loaded config for 3.2 3B Instruct checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # I initialized a mmlu generator
-    generator = ll.benchmarks.mmlu.generator(config)
+    # I initialized mmlu generator w/ 0-shots
+    generator = ll.benchmarks.mmlu.generator(config, n_shots=0)
 
     #
     # Whens
     #
 
     # I generate answer to question
-    answer = next(generator([question]))
+    answer = next(generator([question]))[0]
 
     #
     # Thens
@@ -121,26 +121,9 @@ def test_generate_answers(mmlu_dataset_path: Path):
     # answer should be populated
     assert answer.qid == question.qid
     assert answer.expected == "B"
-    assert isinstance(answer.actual, str)
     assert all(option in answer.scores for option in OPTIONS)
+    assert isinstance(answer.actual, str)
     assert isinstance(answer.correct, bool)
-
-
-@pytest.mark.wip
-def test_evaluate(mmlu_dataset_path: Path):
-    #
-    # Givens
-    #
-
-    # I loaded dataset and looked up question 7779
-    dataset = load_dataset(mmlu_dataset_path)
-    question = select_question(dataset.questions, qid=7779)
-
-    # I loaded config for 3.2 3B checkpoint
-    config = ll.checkpoint.load_config("Llama3.2-3B")
-
-    # I initialized a mmlu generator
-    generator = ll.benchmarks.mmlu.generator(config)
 
     #
     # Whens
@@ -148,6 +131,38 @@ def test_evaluate(mmlu_dataset_path: Path):
 
     # I evaluate generator
     score = evaluate_generator(generator, questions=[question])
+
+    #
+    # Thens
+    #
+
+    # score should be perfect
+    assert score == approx(100)
+
+
+def test_evaluate_generator(mmlu_dataset_path: Path):
+    #
+    # Givens
+    #
+
+    # I loaded dataset
+    dataset = load_dataset(mmlu_dataset_path)
+
+    # I randomly sample questions
+    questions = sample(dataset.questions, k=10)
+
+    # I loaded config for 3.2 3B Instruct checkpoint
+    config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
+
+    #
+    # Whens
+    #
+
+    # I create 0-shot generator that answers questions 3 at a time
+    generator = ll.benchmarks.mmlu.generator(config, n_shots=0, bs=3)
+
+    # I evaluate generator
+    score = evaluate_generator(generator, questions=questions)
 
     #
     # Thens

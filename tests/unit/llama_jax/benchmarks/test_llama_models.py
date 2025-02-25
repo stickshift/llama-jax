@@ -57,7 +57,8 @@ def test_generate_wo_sampling(config: ModelConfig, torch_device, tokenizer: Toke
     ]
 
     # I split prompts into token ids
-    token_ids = torch.tensor(np.array(tokenizer.encode(prompts)), device=device)
+    tids, _ = tokenizer.encode(prompts)
+    token_ids = torch.tensor(np.array(tids), device=device)
 
     #
     # Whens
