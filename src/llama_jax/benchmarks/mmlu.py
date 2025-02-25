@@ -283,7 +283,7 @@ def generator(
     examples: Questions | None = None,
     bs: int | None = None,
 ) -> AnswerGenerator:
-    """Create a text generator."""
+    """Generate answers to questions."""
     
     # Default to zero-shot w/ batch size of 8. See batch size experiments for rationale.
     n_shots = default_arg(n_shots, 0)
@@ -319,7 +319,7 @@ def _generate(
     bs: int,
 ) -> Iterator[Sequence[Answer]]:
     # Look up token ids for MMLU options A, B, C, D
-    mmlu_token_ids = jnp.array([tokenizer.encode(option, bos=False).item() for option in OPTIONS])
+    mmlu_token_ids = jnp.array([tokenizer.encode(option, bos=False)[0].item() for option in OPTIONS])
 
     # Batch questions
     batches = [questions[i : i + bs] for i in range(0, len(questions), bs)]
@@ -330,7 +330,7 @@ def _generate(
         prompts = [ll.chat.render_prompt(generate_prompt(q, n_shots=n_shots, examples=examples)) for q in batch]
 
         # Split prompts into tokens
-        token_ids = tokenizer.encode(prompts)
+        token_ids, position_mask = tokenizer.encode(prompts)
 
         # Drop entire batch if one of the prompts exceeds max tokens
         if token_ids.shape[1] >= config.max_tokens:
@@ -339,7 +339,7 @@ def _generate(
             continue
 
         # Transform token ids into next token logits
-        logits = ll.model.forward(config, model, token_ids)
+        logits = ll.model.forward(config, model, token_ids, position_mask)
 
         # Extract logits for MMLU options
         mmlu_logits = logits.take(mmlu_token_ids, axis=-1)

@@ -24,6 +24,7 @@ __all__ = [
     "token_embeddings",
     "token_ids",
     "tokenizer",
+    "position_mask",
 ]
 
 _prompts = [
@@ -90,6 +91,13 @@ def token_ids(config: ModelConfig, bs: int, n: int) -> Array:
     assert x.dtype == jnp.int32
 
     return x
+
+
+@pytest.fixture(scope="session")
+def position_mask(bs: int, n: int) -> Array:
+    """Sample position mask."""
+
+    return jnp.ones(bs*n, dtype=jnp.int32).reshape(bs, n)
 
 
 @pytest.fixture(scope="session")
@@ -168,7 +176,7 @@ def attention_output(
     x = layer.attention_norm(x)
 
     # Generate (n, n) mask bias term
-    m = torch.tensor(np.array(mask[:n, :n].astype(jnp.float32)), device=torch_device)
+    m = torch.tensor(np.array(mask[0][:n, :n].astype(jnp.float32)), device=torch_device)
 
     # Attention
     freqs_cis = reference_model.freqs_cis[:n]
@@ -258,7 +266,7 @@ def rope(config: ModelConfig, n: int) -> Rope:
 
 
 @pytest.fixture(scope="session")
-def mask(config: ModelConfig, n: int) -> Array:
-    """Causal attention mask."""
+def mask(config: ModelConfig, position_mask: Array) -> Array:
+    """Attention mask."""
 
-    return ll.attention.attention_mask(config)
+    return ll.model.attention_mask(config, position_mask)

@@ -3,7 +3,7 @@ from jax import Array
 import llama_jax as ll
 
 
-def test_323b(key: Array):
+def test_323b():
     #
     # Givens
     #
@@ -20,7 +20,7 @@ def test_323b(key: Array):
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
     # I initialized a chat generator w/ token sampling disabled
-    generator, key = ll.chat.generator(config, key, temperature=0)
+    generator = ll.chat.generator(config, temperature=0)
 
     #
     # Whens
@@ -45,7 +45,7 @@ def test_323b(key: Array):
     assert message.content.strip() == "Boston"
 
 
-def test_323b_streaming(key: Array):
+def test_323b_streaming():
     #
     # Givens
     #
@@ -62,7 +62,7 @@ def test_323b_streaming(key: Array):
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
     # I initialized a streaming chat generator w/ token sampling disabled
-    generator, key = ll.chat.generator(config, key, temperature=0, stream=True)
+    generator = ll.chat.generator(config, temperature=0, stream=True)
 
     #
     # Whens

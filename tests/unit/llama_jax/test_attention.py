@@ -82,30 +82,6 @@ def test_attention_heads(config: ModelConfig, bs: int, n: int, token_embeddings:
     assert (y == x).all()
 
 
-def test_attention_mask(config: ModelConfig, n: int):
-    #
-    # Givens
-    #
-
-    # I overrode config dtype
-    config = config._replace(dtype=jnp.int32)
-
-    #
-    # Whens
-    #
-
-    # I generate mask
-    m = ll.attention.attention_mask(config)
-
-    #
-    # Thens
-    #
-
-    # m should be populated (max_tokens, max_tokens) w/ with zeros below the diagonal, -inf above the diagonal
-    assert m.shape == (config.max_tokens, config.max_tokens)
-    assert m.dtype == config.dtype
-
-
 def test_forward(
     config: ModelConfig,
     params: ModelParameters,

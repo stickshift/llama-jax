@@ -13,6 +13,7 @@ from tests.fixtures.llama import (
     token_embeddings,
     token_ids,
     tokenizer,
+    position_mask,
 )
 from tests.fixtures.mmlu import mmlu_dataset_path
 from tests.fixtures.reference_fixtures import reference_model
@@ -51,4 +52,5 @@ __all__ = [
     "torch_disable_gradients",
     "workspace_env",
     "workspace_path",
+    "position_mask",
 ]

@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
 from jax import Array
-from jax import numpy as jnp
+from jax import numpy as jnp, random
 from pytest import approx
 
 import llama_jax as ll
@@ -43,6 +43,7 @@ def test_forward_full_sequence(
     config: ModelConfig,
     params: ModelParameters,
     token_ids: Array,
+    position_mask: Array,
     logits: Array,
 ):
     """Transforms tokens into logits in a single pass."""
@@ -62,7 +63,7 @@ def test_forward_full_sequence(
     #
 
     # I transform entire sequence into logits
-    logits1 = ll.model.forward(config, model, token_ids)
+    logits1 = ll.model.forward(config, model, token_ids, position_mask)
 
     #
     # Thens
@@ -77,6 +78,7 @@ def test_forward_incremental(
     params: ModelParameters,
     n: int,
     token_ids: Array,
+    position_mask: Array,
     logits: Array,
 ):
     """Transforms tokens into logits one token at a time."""
@@ -97,14 +99,15 @@ def test_forward_incremental(
 
     # I iterate through tokens one at a time
     for i in range(n):
-        # I look up current token
+        # I look up current token and mask
         x = token_ids[:, i : i + 1]
+        m = position_mask[:, i : i + 1]
 
         # I look up expected logits for current token
         logits0 = logits[:, i]
 
         # I transform x into logits
-        logits1, kv_cache = ll.model.forward(config, model, x, kv_cache=kv_cache)
+        logits1, kv_cache = ll.model.forward(config, model, x, m, kv_cache=kv_cache)
 
         #
         # Thens
@@ -220,7 +223,7 @@ def test_sample_top_p():
     assert (x[1] == jnp.array([0.8, 0.0, 0.0, 0.0])).all()
 
 
-def test_next_token_max_logit(key: Array, logits: Array):
+def test_next_token_max_logit(logits: Array):
     #
     # Whens
     #
@@ -229,7 +232,7 @@ def test_next_token_max_logit(key: Array, logits: Array):
     logits = logits[:, -1]
 
     # I select next token w/ sampling disabled
-    next_tokens, key = ll.model.next_token(logits, key, temperature=0)
+    next_tokens = ll.model.next_token(logits, temperature=0)
 
     #
     # Thens
@@ -263,17 +266,19 @@ def test_next_token_random_sample(key: Array):
 
         # Sample tokens n times
         for _ in range(n):
-            next_token, key = ll.model.next_token(logits, key, temperature=temperature)
+            key, subkey = random.split(key)
+            next_token = ll.model.next_token(logits, key=subkey, temperature=temperature)
             counts[next_token.item()] = counts[next_token.item()] + 1
 
-        return counts, key
+        return counts
 
     #
     # Whens
     #
 
     # I sample tokens with uniform probs
-    counts, key = sample([1.0, 1.0, 1.0], key)
+    key, subkey = random.split(key)
+    counts = sample([1.0, 1.0, 1.0], subkey)
 
     #
     # Thens
@@ -289,7 +294,8 @@ def test_next_token_random_sample(key: Array):
     #
 
     # I sample tokens with ascending probs 1/6, 2/6, 3/6
-    counts, key = sample([1.0, 2.0, 3.0], key)
+    key, subkey = random.split(key)
+    counts = sample([1.0, 2.0, 3.0], subkey)
 
     #
     # Thens
@@ -305,7 +311,8 @@ def test_next_token_random_sample(key: Array):
     #
 
     # I sample tokens with ascending probs and temperature > 1 (increased randomness)
-    counts, key = sample([1.0, 2.0, 3.0], key, temperature=2.0)
+    key, subkey = random.split(key)
+    counts = sample([1.0, 2.0, 3.0], subkey, temperature=2.0)
 
     #
     # Thens
@@ -319,7 +326,8 @@ def test_next_token_random_sample(key: Array):
     #
 
     # I sample tokens with ascending probs and temperature < 1 (decreased randomness)
-    counts, key = sample([1.0, 2.0, 3.0], key, temperature=0.1)
+    key, subkey = random.split(key)
+    counts = sample([1.0, 2.0, 3.0], subkey, temperature=0.1)
 
     #
     # Thens
@@ -341,7 +349,7 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
     )
 
     # I split prompts into tokens
-    tokens = tokenizer.encode(prompts)
+    token_ids, position_mask = tokenizer.encode(prompts)
 
     # I created a Model
     model = ll.model.create(config, params)
@@ -353,16 +361,18 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
     # I generate 3 tokens w/ sampling disabled
     for _ in range(3):
         # Transform tokens into logits
-        logits = ll.model.forward(config, model, tokens)
+        logits = ll.model.forward(config, model, token_ids, position_mask)
 
         # Sample next token
-        next_token, key = ll.model.next_token(logits, key, temperature=0)
+        key, subkey = random.split(key)
+        next_token_id = ll.model.next_token(logits, key=subkey, temperature=0)
 
         # Process all tokens on next pass
-        tokens = jnp.concat([tokens, next_token], axis=-1)
+        token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
+        position_mask = jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)
 
     # I decode tokens
-    prompts = tokenizer.decode(tokens, special=False)
+    prompts = tokenizer.decode(token_ids, special=False)
 
     #
     # Thens
@@ -387,7 +397,7 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
     )
 
     # I split prompts into tokens
-    tokens = tokenizer.encode(prompts)
+    token_ids, position_mask = tokenizer.encode(prompts)
 
     # I initialized key/value cache
     kv_cache = ll.kv_cache.create(config)
@@ -400,22 +410,24 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
     #
 
     # I generate 3 tokens w/ sampling disabled
-    x = tokens
+    x = token_ids
     for _ in range(3):
         # Transform x into logits
-        logits, kv_cache = ll.model.forward(config, model, x, kv_cache=kv_cache)
+        logits, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
 
         # Sample next token
-        next_token, key = ll.model.next_token(logits, key, temperature=0)
+        key, subkey = random.split(key)
+        next_token_id = ll.model.next_token(logits, key=subkey, temperature=0)
 
         # Update full list of tokens
-        tokens = jnp.concat([tokens, next_token], axis=-1)
+        token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
 
         # Process generated token on next pass
-        x = next_token
+        x = next_token_id
+        position_mask = jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)
 
     # I decode tokens
-    prompts = tokenizer.decode(tokens, special=False)
+    prompts = tokenizer.decode(token_ids, special=False)
 
     #
     # Thens

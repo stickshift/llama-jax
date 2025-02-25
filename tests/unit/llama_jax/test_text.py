@@ -4,7 +4,7 @@ import pytest
 import llama_jax as ll
 
 
-def test_323b(key: Array):
+def test_323b():
     #
     # Givens
     #
@@ -18,15 +18,15 @@ def test_323b(key: Array):
     # I loaded config for 3.2 3B checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B")
 
-    # I initialized a text generator w/ token sampling disabled and max_tokens = 3
-    generator, key = ll.text.generator(config, key, temperature=0, max_tokens=3)
+    # I initialized a text generator w/ token sampling disabled
+    generator = ll.text.generator(config, temperature=0)
 
     #
     # Whens
     #
 
-    # I generate tokens
-    for tokens in generator(prompts):
+    # I generate 3 tokens
+    for tokens in generator(prompts, max_tokens=3):
         prompts = tuple(p + t for p, t in zip(prompts, tokens))
 
     #

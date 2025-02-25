@@ -24,6 +24,8 @@ __all__ = [
     "create",
     "forward",
     "next_token",
+    "attention_mask",
+    "increment_position_mask",
 ]
 
 # Module logger
@@ -40,8 +42,6 @@ class Model(NamedTuple):
     head: Head
 
     rope: Rope
-
-    mask: Array
 
 
 def create(config: ModelConfig, params: ModelParameters) -> Model:
@@ -65,15 +65,11 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     # Rope
     rope = ll.rope.create(config)
 
-    # Mask
-    mask = ll.attention.attention_mask(config)
-
     model = Model(
         embeddings=embeddings,
         layers=layers,
         head=head,
         rope=rope,
-        mask=mask,
     )
 
     return model
@@ -84,6 +80,7 @@ def forward(
     config: ModelConfig,
     state: Model,
     token_ids: Array,
+    position_mask: Array,
     *,
     kv_cache: KVCache | None = None,
 ) -> Array | tuple[Array, KVCache]:
@@ -98,8 +95,8 @@ def forward(
     # Defaults
     kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config))
 
-    # Sanity check
-    assert token_ids.ndim == 2
+    # Sanity check - Note token_ids.shape != position_mask.shape when decoding generated tokens
+    assert token_ids.ndim == position_mask.ndim == 2
 
     # Map tokens to embeddings
     x = ll.embeddings.forward(config, state.embeddings, token_ids)
@@ -107,9 +104,12 @@ def forward(
     # Create mutable kv cache
     kvc = MutableKVCache(kv_cache)
 
+    # Create mask
+    mask = attention_mask(config, position_mask)
+
     # Apply layers
     for i, layer in enumerate(state.layers):
-        x, kvc[i] = ll.layer.forward(config, layer, state.rope, state.mask, x, kvc[i])
+        x, kvc[i] = ll.layer.forward(config, layer, state.rope, mask, x, kvc[i])
 
     # Convert kv caches back into immutable sequence
     kv_cache = KVCache(kvc)
@@ -127,12 +127,12 @@ def forward(
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
 def next_token(
     logits: Array,
-    key: Array,
     *,
+    key: Array | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
-) -> tuple[Array, Array]:
+) -> Array:
     """Select next token using temperature, top_p, and top_k sampling.
 
     Sample tokens from a probability distribution, allowing control over randomness and diversity using the
@@ -140,7 +140,7 @@ def next_token(
 
     Args:
         logits (Array): Next token logits.
-        key (Array): RNG key.
+        key (Array): (Optional) RNG.
         temperature (float): (Optional) The sampling temperature. Higher values (e.g., 1.0) increase randomness, while
             lower values (e.g., 0.1) make output more deterministic. If set to 0, random sampling is disabled and the
             top scoring token is always returned. Defaults to 0.6.
@@ -170,7 +170,7 @@ def next_token(
 
     # If temperature is 0, return the top token
     if temperature == 0:
-        return jnp.argmax(logits, axis=value_axis, keepdims=True), key
+        return jnp.argmax(logits, axis=value_axis, keepdims=True)
 
     # Apply temperature
     logits = logits / temperature
@@ -209,7 +209,7 @@ def next_token(
     selected = jnp.reshape(selected, (*selected.shape, 1))
     next_token_id = jnp.take_along_axis(indices, selected, axis=value_axis)
 
-    return next_token_id, key
+    return next_token_id
 
 
 def _sample_top_k(probs: Array, top_k: int | None = None) -> Array:
@@ -264,3 +264,39 @@ def _select_index(probs: Array, key: Array) -> Array:
     index = random.choice(key, pool, p=probs)
 
     return index
+
+
+def attention_mask(config: ModelConfig, position_mask: Array) -> Array:
+
+    # Sanity check
+    assert position_mask.dtype == jnp.int32
+
+    # Start with (max_tokens, max_tokens) causal mask
+    causal_mask = jnp.tril(jnp.ones((config.max_tokens, config.max_tokens), dtype=jnp.int32))
+
+    # Pad position mask from (bs, n) to (bs, max_tokens)
+    position_mask = jnp.pad(
+        position_mask,
+        (
+            (0, 0),  # (before0, after0)
+            (0, config.max_tokens - position_mask.shape[1]),  # (before1, after1)
+        ),
+        constant_values=1,
+    )
+
+    # Combine masks: m[b, i, j] = causal_mask[i, j] AND position_mask[b, j]
+    #   1) Broadcast causal_mask from (n, n) to (bs, n, n)
+    #   2) Broadcast position mask from (bs, n) to (bs, n, n)
+    #   3) Logically AND them together
+
+    m = causal_mask[None, :, :] & position_mask[:, None, :]
+
+    # Convert to attention mask w/ 0s and -infs
+    m = jnp.where(m, 0, -jnp.inf)
+
+    return m
+
+
+def increment_position_mask(position_mask: Array) -> Array:
+    """Pad position mask with a 1 to represent latest token."""
+    return jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)

@@ -69,7 +69,7 @@ class Tokenizer:
             self.special_tokens["<|eot_id|>"],
         ]
 
-    def encode(self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None) -> Array:
+    def encode(self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None) -> tuple[Array, Array]:
         """Encodes a list of prompts into an array of token IDs."""
         # Defaults
         bos = default_arg(bos, True)
@@ -100,7 +100,12 @@ class Tokenizer:
         if eos:
             token_ids = [[*v, self.eos_id] for v in token_ids]
 
-        return jnp.array(token_ids)
+        token_ids = jnp.array(token_ids)
+
+        # Calculate mask from padding
+        position_mask = jnp.where(token_ids == self.pad_id, 0, 1)
+
+        return token_ids, position_mask
 
     def decode(self, token_ids: Array, special: bool | None = None) -> Sequence[str]:
         """Decodes token_ids into sequence of strings."""

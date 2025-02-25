@@ -42,9 +42,9 @@ ROLE = "assistant"
 
 def generator(
     config: ModelConfig,
-    key: Array,
     *,
     model: Model | None = None,
+    key: Array | None = None,
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
@@ -70,12 +70,11 @@ def generator(
     # Define generator callable
     def wrapper(
         input_messages: Sequence[MessageLike],
-        *,
-        key: Array,
         **kwargs: Any,
     ) -> Iterator[CompletionEvent]:
+        nonlocal key, max_tokens, stream
+
         # Override ctor args
-        nonlocal max_tokens, stream
         max_tokens = kwargs.get("max_tokens", max_tokens)
         assert max_tokens is not None
         stream = kwargs.get("stream", stream)
@@ -86,7 +85,7 @@ def generator(
 
         # Render prompt and split into token ids
         prompt = render_prompt(messages)
-        token_ids = tokenizer.encode(prompt)
+        token_ids, position_mask = tokenizer.encode(prompt)
 
         # Initialize key/value cache
         kv_cache = ll.kv_cache.create(config)
@@ -99,10 +98,11 @@ def generator(
         # Sample up to max tokens
         for _ in range(max_tokens):
             # Transform x into logits
-            logits, kv_cache = ll.model.forward(config, model, x, kv_cache=kv_cache)
+            logits, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
 
             # Sample next token
-            next_token_id, key = ll.model.next_token(logits, key, temperature=temperature, top_k=top_k, top_p=top_p)
+            key, subkey = random.split(key) if key is not None else (None, None)
+            next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
 
             # Break on stop tokens
             if next_token_id in tokenizer.stop_tokens:
@@ -122,15 +122,12 @@ def generator(
 
             # Subsequent iterations process one token at a time
             x = next_token_id
+            position_mask = ll.model.increment_position_mask(position_mask)
 
         # Final event
         yield CompletionEvent(messages=_response_messages(messages, content), delta=None)
 
-    # Generate subkey to be consumed by wrapper
-    key, subkey = random.split(key)
-    wrapper = partial(wrapper, key=subkey)
-
-    return wrapper, key
+    return wrapper
 
 
 def render_prompt(messages: Sequence[Message]) -> str:

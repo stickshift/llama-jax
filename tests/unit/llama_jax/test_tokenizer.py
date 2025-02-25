@@ -14,14 +14,15 @@ def test_codec(tokenizer: Tokenizer):
     #
 
     # I encode prompt
-    token_ids = tokenizer.encode(prompts0, bos=False)
+    token_ids, position_mask = tokenizer.encode(prompts0, bos=False)
 
     #
     # Thens
     #
 
-    # token_ids should be a 2D Array
+    # token_ids and position_mask should be a 2D Arrays
     assert token_ids.ndim == 2
+    assert position_mask.shape == token_ids.shape
 
     #
     # Whens
@@ -54,7 +55,7 @@ def test_padding(tokenizer: Tokenizer):
     #
 
     # I encode prompts
-    token_ids = tokenizer.encode(prompts, bos=False)
+    token_ids, position_mask = tokenizer.encode(prompts, bos=False)
 
     #
     # Thens
@@ -65,6 +66,12 @@ def test_padding(tokenizer: Tokenizer):
 
     # token_ids should be padded
     assert token_ids[0, 2] == tokenizer.pad_id
+
+    # first mask should be [1, 1, 0]
+    assert position_mask[0].tolist() == [1, 1, 0]
+
+    # second mask should be [1, 1, 1]
+    assert position_mask[1].tolist() == [1, 1, 1]
 
 
 def test_bos(tokenizer: Tokenizer):
@@ -80,7 +87,7 @@ def test_bos(tokenizer: Tokenizer):
     #
 
     # I encode prompts with marker
-    token_ids = tokenizer.encode(prompts, bos=True)
+    token_ids, position_mask = tokenizer.encode(prompts, bos=True)
 
     #
     # Thens
@@ -89,12 +96,15 @@ def test_bos(tokenizer: Tokenizer):
     # token_ids should include bos
     assert token_ids[0, 0] == tokenizer.bos_id
 
+    # position_mask should be all 1s
+    assert (position_mask == 1).all()
+
     #
     # Whens
     #
 
     # I encode prompts with no marker
-    token_ids = tokenizer.encode(prompts, bos=False)
+    token_ids, position_mask = tokenizer.encode(prompts, bos=False)
 
     #
     # Thens
@@ -102,6 +112,9 @@ def test_bos(tokenizer: Tokenizer):
 
     # token_ids should not include bos
     assert token_ids[0, 0] != tokenizer.bos_id
+
+    # position_mask should be all 1s
+    assert (position_mask == 1).all()
 
 
 def test_eos(tokenizer: Tokenizer):
@@ -117,7 +130,7 @@ def test_eos(tokenizer: Tokenizer):
     #
 
     # I encode prompts with marker
-    token_ids = tokenizer.encode(prompts, eos=True)
+    token_ids, position_mask = tokenizer.encode(prompts, eos=True)
 
     #
     # Thens
@@ -126,12 +139,15 @@ def test_eos(tokenizer: Tokenizer):
     # token_ids should include marker
     assert token_ids[0, -1] == tokenizer.eos_id
 
+    # position_mask should be all 1s
+    assert (position_mask == 1).all()
+
     #
     # Whens
     #
 
     # I encode prompts with no marker
-    token_ids = tokenizer.encode(prompts, eos=False)
+    token_ids, position_mask = tokenizer.encode(prompts, eos=False)
 
     #
     # Thens
@@ -139,3 +155,6 @@ def test_eos(tokenizer: Tokenizer):
 
     # token_ids should not include marker
     assert token_ids[0, -1] != tokenizer.eos_id
+
+    # position_mask should be all 1s
+    assert (position_mask == 1).all()
