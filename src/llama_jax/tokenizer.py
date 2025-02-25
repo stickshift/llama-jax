@@ -69,7 +69,9 @@ class Tokenizer:
             self.special_tokens["<|eot_id|>"],
         ]
 
-    def encode(self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None) -> tuple[Array, Array]:
+    def encode(
+        self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None
+    ) -> tuple[Array, Array]:
         """Encodes a list of prompts into an array of token IDs."""
         # Defaults
         bos = default_arg(bos, True)
@@ -80,7 +82,7 @@ class Tokenizer:
             prompts = (prompts,)
 
         # Encode each prompt
-        token_ids = [
+        tids = [
             self.model.encode(
                 prompt,
                 allowed_special="all",
@@ -90,17 +92,18 @@ class Tokenizer:
         ]
 
         # Padding
-        pad_length = max(len(v) for v in token_ids)
-        for v in token_ids:
+        pad_length = max(len(v) for v in tids)
+        for v in tids:
             v.extend([self.pad_id] * (pad_length - len(v)))
 
         # Inject bos/eos tokens
         if bos:
-            token_ids = [[self.bos_id, *v] for v in token_ids]
+            tids = [[self.bos_id, *v] for v in tids]
         if eos:
-            token_ids = [[*v, self.eos_id] for v in token_ids]
+            tids = [[*v, self.eos_id] for v in tids]
 
-        token_ids = jnp.array(token_ids)
+        # Convert to jax
+        token_ids = jnp.array(tids)
 
         # Calculate mask from padding
         position_mask = jnp.where(token_ids == self.pad_id, 0, 1)

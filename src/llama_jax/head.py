@@ -3,6 +3,7 @@
 from typing import NamedTuple
 
 from jax import Array
+from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
@@ -39,13 +40,25 @@ def create(config: ModelConfig, params: ModelParameters) -> Head:
     )
 
 
-def forward(config: ModelConfig, state: Head, x: Array) -> Array:
+def forward(config: ModelConfig, state: Head, x: Array, position_mask: Array) -> Array:
     """Transform embeddings into token logits."""
     # Normalize inputs
     x = ll.rms_norm.forward(config, state.norm, x)
 
-    # Use last embedding to represent the entire sequence.
-    x = x[:, -1]
+    # Use last "real" embedding to represent the entire sequence.
+
+    # Start with fixed lengths for all batches
+    fixed_lengths = jnp.full(x.shape[0], fill_value=x.shape[1])
+
+    # Calculate custom lengths per batch w/o padding
+    padded_lengths = jnp.sum(position_mask, axis=-1)
+
+    # Select between fixed and padded lengths using jnp.where to comply with jax compiler
+    condition = jnp.any(jnp.take(position_mask, -1, axis=-1) == 0)
+    lengths = jnp.where(condition, padded_lengths, fixed_lengths)
+
+    # Select the lengths-1 embedding for each batch
+    x = jnp.array([v[lengths[i] - 1] for i, v in enumerate(x)])
 
     # Project outputs to token space
     x = x @ state.output

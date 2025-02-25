@@ -21,11 +21,11 @@ from llama_jax.tools import default_arg
 
 __all__ = [
     "Model",
+    "attention_mask",
     "create",
     "forward",
-    "next_token",
-    "attention_mask",
     "increment_position_mask",
+    "next_token",
 ]
 
 # Module logger
@@ -115,7 +115,7 @@ def forward(
     kv_cache = KVCache(kvc)
 
     # Apply head
-    x = ll.head.forward(config, state.head, x)
+    x = ll.head.forward(config, state.head, x, position_mask)
 
     # Return updated cache if provided
     if external_cache:
@@ -197,6 +197,7 @@ def next_token(
 
     # Random Selection
     # ----------------
+    assert key is not None
 
     # Create separate keys for each batch
     keys = random.split(key, logits.shape[batch_axis] + 1)
@@ -267,7 +268,7 @@ def _select_index(probs: Array, key: Array) -> Array:
 
 
 def attention_mask(config: ModelConfig, position_mask: Array) -> Array:
-
+    """Compute attention mask."""
     # Sanity check
     assert position_mask.dtype == jnp.int32
 

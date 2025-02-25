@@ -1,5 +1,4 @@
 from collections.abc import Iterator, Mapping, Sequence
-from functools import partial
 from typing import Any, Callable, NamedTuple, cast
 
 from jax import Array, random
@@ -50,7 +49,7 @@ def generator(
     top_p: float | None = None,
     max_tokens: int | None = None,
     stream: bool | None = None,
-) -> tuple[ChatGenerator, Array]:
+) -> ChatGenerator:
     """Create a chat generator."""
     # Defaults
     max_tokens = default_arg(max_tokens, 32)

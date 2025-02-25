@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
-from jax import Array
-from jax import numpy as jnp, random
+from jax import Array, random
+from jax import numpy as jnp
 from pytest import approx
 
 import llama_jax as ll

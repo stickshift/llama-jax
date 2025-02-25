@@ -118,7 +118,7 @@ def attention(config: ModelConfig, q: Array, k: Array, v: Array, m: Array) -> Ar
     """Compute attention in parallel across all heads."""
     # Sanity check
     assert q.ndim == k.ndim == v.ndim == m.ndim
-    
+
     # Attention scores
     scores = softmax(q @ k.swapaxes(-2, -1) / jnp.sqrt(config.d_head) + m, axis=-1)
 
@@ -180,7 +180,7 @@ def forward(
 
     # Generate (bs, q, k) mask bias term
     m = mask[:, (n_keys - n_queries) : n_keys, :n_keys]
-    
+
     # Broadcast m to (bs, 1, q, k) to be compatible with split q, k, v
     m = m[:, None, :, :]
 

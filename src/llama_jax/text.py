@@ -1,10 +1,9 @@
 """Text completions."""
 
 from collections.abc import Iterator, Sequence
-from functools import partial
 from typing import Any, Callable
 
-from jax import Array, random, numpy as jnp
+from jax import Array, random
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, TrainingLevel
@@ -27,7 +26,7 @@ def generator(
     top_k: int | None = None,
     top_p: float | None = None,
     max_tokens: int | None = None,
-) -> tuple[TextGenerator, Array]:
+) -> TextGenerator:
     """Create a text generator."""
     # Defaults
     max_tokens = default_arg(max_tokens, 32)

@@ -20,11 +20,11 @@ __all__ = [
     "mask",
     "n",
     "params",
+    "position_mask",
     "rope",
     "token_embeddings",
     "token_ids",
     "tokenizer",
-    "position_mask",
 ]
 
 _prompts = [
@@ -97,7 +97,7 @@ def token_ids(config: ModelConfig, bs: int, n: int) -> Array:
 def position_mask(bs: int, n: int) -> Array:
     """Sample position mask."""
 
-    return jnp.ones(bs*n, dtype=jnp.int32).reshape(bs, n)
+    return jnp.ones(bs * n, dtype=jnp.int32).reshape(bs, n)
 
 
 @pytest.fixture(scope="session")

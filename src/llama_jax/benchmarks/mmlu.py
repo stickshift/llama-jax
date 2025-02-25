@@ -230,46 +230,29 @@ def generate_prompt(
     # Examples
     for row in selected_examples:
         # Question
-        messages.append(
+        messages.append(  # noqa: FURB113
             Message(
                 role="user",
-                content=(
-                    f"{row.question}\n"
-                    f"\n"
-                    f"A) {row.A}\n"
-                    f"B) {row.B}\n"
-                    f"C) {row.C}\n"
-                    f"D) {row.D}\n"
-                ),
+                content=(f"{row.question}\n\nA) {row.A}\nB) {row.B}\nC) {row.C}\nD) {row.D}\n"),
             ),
         )
-        
+
         # Answer
         messages.append(
             Message(
                 role="assistant",
-                content=(
-                    f"{row.answer}"
-                ),
+                content=(f"{row.answer}"),
             ),
         )
-
 
     # Question
     messages.append(
         Message(
             role="user",
-            content=(
-                f"{question.question}\n"
-                f"\n"
-                f"A) {question.A}\n"
-                f"B) {question.B}\n"
-                f"C) {question.C}\n"
-                f"D) {question.D}\n"
-            ),
+            content=(f"{question.question}\n\nA) {question.A}\nB) {question.B}\nC) {question.C}\nD) {question.D}\n"),
         ),
     )
-    
+
     return messages
 
 
@@ -284,7 +267,6 @@ def generator(
     bs: int | None = None,
 ) -> AnswerGenerator:
     """Generate answers to questions."""
-    
     # Default to zero-shot w/ batch size of 8. See batch size experiments for rationale.
     n_shots = default_arg(n_shots, 0)
     bs = default_arg(bs, 8)
@@ -335,7 +317,9 @@ def _generate(
         # Drop entire batch if one of the prompts exceeds max tokens
         if token_ids.shape[1] >= config.max_tokens:
             question = batch[np.argmax([len(q.question) for q in batch])]
-            logger.warning(f"Question {question.qid} exceeds max tokens: {token_ids.shape[1]} >= {config.max_tokens}. Dropping entire batch.")
+            logger.warning(
+                f"Question {question.qid} exceeds max tokens: {token_ids.shape[1]} >= {config.max_tokens}. Dropping entire batch."
+            )
             continue
 
         # Transform token ids into next token logits

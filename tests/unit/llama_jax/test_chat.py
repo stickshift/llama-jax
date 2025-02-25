@@ -1,5 +1,3 @@
-from jax import Array
-
 import llama_jax as ll
 
 
