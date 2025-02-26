@@ -20,7 +20,7 @@ import requests
 from tqdm.auto import tqdm
 
 import llama_jax as ll
-from llama_jax.chat import Message
+from llama_jax.chat import Thread
 from llama_jax.checkpoint import ModelConfig
 from llama_jax.model import Model
 from llama_jax.tokenizer import Tokenizer
@@ -195,7 +195,7 @@ def generate_prompt(
     *,
     n_shots: int,
     examples: Questions | None = None,
-) -> Sequence[Message]:
+) -> Thread:
     """Generate prompt for specified question."""
     # Validate
     if n_shots < 0 or n_shots > 5:  # noqa: PLR2004
@@ -215,45 +215,45 @@ def generate_prompt(
     messages = []
 
     # System message
-    messages.append(
-        Message(
-            role="system",
-            content=(
-                f"You are an expert answering multiple choice questions about {question.category}. Each question "
-                f"has 4 options: A, B, C, D. The prompt will contain {n_shots} example questions with correct answers "
-                f"followed by a final question. Your job is to answer the final question. Your answer MUST be one "
-                f"of: A, B, C, D."
-            ),
-        )
-    )
+    messages.append({
+        "role": "system",
+        "content": (
+            f"You are an expert answering multiple choice questions about {question.category}. Each question "
+            f"has 4 options: A, B, C, D. The prompt will contain {n_shots} example questions with correct answers "
+            f"followed by a final question. Your job is to answer the final question. Your answer MUST be one "
+            f"of: A, B, C, D."
+        ),
+    })
 
     # Examples
     for row in selected_examples:
         # Question
         messages.append(  # noqa: FURB113
-            Message(
-                role="user",
-                content=(f"{row.question}\n\nA) {row.A}\nB) {row.B}\nC) {row.C}\nD) {row.D}\n"),
-            ),
+            {
+                "role": "user",
+                "content": f"{row.question}\n\nA) {row.A}\nB) {row.B}\nC) {row.C}\nD) {row.D}\n",
+            },
         )
 
         # Answer
         messages.append(
-            Message(
-                role="assistant",
-                content=(f"{row.answer}"),
-            ),
+            {
+                "role": "assistant",
+                "content": f"{row.answer}",
+            },
         )
 
     # Question
     messages.append(
-        Message(
-            role="user",
-            content=(f"{question.question}\n\nA) {question.A}\nB) {question.B}\nC) {question.C}\nD) {question.D}\n"),
-        ),
+        {
+            "role": "user",
+            "content": f"{question.question}\n\nA) {question.A}\nB) {question.B}\nC) {question.C}\nD) {question.D}\n",
+        },
     )
 
-    return messages
+    thread = {"messages": messages}
+
+    return ll.chat.load_threads(thread)[0]
 
 
 AnswerGenerator = Callable[[Questions], Iterator[Sequence[Answer]]]

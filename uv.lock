@@ -973,6 +973,7 @@ dependencies = [
     { name = "click" },
     { name = "jax-metal" },
     { name = "pandas" },
+    { name = "pydantic" },
     { name = "tiktoken" },
     { name = "tqdm" },
 ]
@@ -1008,6 +1009,7 @@ requires-dist = [
     { name = "jax-metal", specifier = ">=0.1.1" },
     { name = "llama-models", marker = "extra == 'benchmarks'", specifier = ">=0.0.63" },
     { name = "pandas", specifier = ">=2.2.3" },
+    { name = "pydantic", specifier = ">=2.10.4" },
     { name = "tiktoken", specifier = ">=0.8.0" },
     { name = "torch", marker = "extra == 'cli'", specifier = ">=2.5.1" },
     { name = "tqdm", specifier = ">=4.67.1" },

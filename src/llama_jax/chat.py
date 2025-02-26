@@ -1,7 +1,11 @@
 from collections.abc import Iterator, Mapping, Sequence
-from typing import Any, Callable, NamedTuple, cast
+import logging
+from typing import Annotated, Any, Callable, NamedTuple, cast
+from uuid import uuid4
 
 from jax import Array, random
+from jax import numpy as jnp
+from pydantic import BeforeValidator, TypeAdapter
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, TrainingLevel
@@ -12,8 +16,13 @@ __all__ = [
     "CompletionEvent",
     "Message",
     "MessageLike",
+    "Thread",
+    "ThreadLike",
     "generator",
+    "load_threads",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class Message(NamedTuple):
@@ -27,14 +36,38 @@ class Message(NamedTuple):
 MessageLike = Mapping[str, str] | Message
 
 
+class Thread(NamedTuple):
+    """Multiple messages strong together in a dialog."""
+
+    id: str
+
+    messages: Sequence[Message]
+
+
+def _validate_thread(data: Any) -> Any:
+    if not isinstance(data, dict):
+        return data
+
+    if "id" not in data:
+        data["id"] = uuid4().hex
+
+    return data
+
+
+Thread = Annotated[Thread, BeforeValidator(_validate_thread)]  # type: ignore
+
+
+ThreadLike = Mapping[str, str] | Thread
+
+
 class CompletionEvent(NamedTuple):
     """Chat completion event."""
 
-    messages: Sequence[Message]
+    thread: Thread
     delta: Message | None
 
 
-ChatGenerator = Callable[[Sequence[MessageLike]], Iterator[CompletionEvent]]
+ChatGenerator = Callable[[ThreadLike | Sequence[ThreadLike]], Iterator[CompletionEvent | Sequence[CompletionEvent]]]
 
 ROLE = "assistant"
 
@@ -68,9 +101,9 @@ def generator(
 
     # Define generator callable
     def wrapper(
-        input_messages: Sequence[MessageLike],
+        input_threads: ThreadLike | Sequence[ThreadLike],
         **kwargs: Any,
-    ) -> Iterator[CompletionEvent]:
+    ) -> Iterator[CompletionEvent | Sequence[CompletionEvent]]:
         nonlocal key, max_tokens, stream
 
         # Override ctor args
@@ -79,12 +112,14 @@ def generator(
         stream = kwargs.get("stream", stream)
         assert stream is not None
 
-        # Validate input messages
-        messages = _validate_messages(input_messages)
+        # Validate
+        batched = _batched(input_threads)
+        threads = load_threads(input_threads)
+        bs = len(threads)
 
-        # Render prompt and split into token ids
-        prompt = render_prompt(messages)
-        token_ids, position_mask = tokenizer.encode(prompt)
+        # Render prompts and tokenize
+        prompts = tuple(render_prompt(thread) for thread in threads)
+        token_ids, position_mask = tokenizer.encode(prompts)
 
         # Initialize key/value cache
         kv_cache = ll.kv_cache.create(config)
@@ -92,7 +127,10 @@ def generator(
         # Initialize x with entire sequence on first pass
         x = token_ids
 
-        content = ""
+        # All sequences in batch start off active
+        active = jnp.ones(x.shape[0], dtype=bool)
+
+        content = ["" for _ in range(bs)]
 
         # Sample up to max tokens
         for _ in range(max_tokens):
@@ -103,37 +141,55 @@ def generator(
             key, subkey = random.split(key) if key is not None else (None, None)
             next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
 
-            # Break on stop tokens
-            if next_token_id in tokenizer.stop_tokens:
+            # Track active sequences
+            is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
+            active = active & ~is_stop_token
+            if not jnp.any(active):
                 break
 
             # Decode next token
-            token = tokenizer.decode(next_token_id)[0]
+            tokens = tokenizer.decode(next_token_id, special=False)
 
-            # Append to final response
-            content += token
+            # Collect tokens for active sequences
+            for i in range(bs):
+                if active[i]:
+                    content[i] += tokens[i]
 
             if stream:
-                yield CompletionEvent(
-                    messages=_response_messages(messages, content),
-                    delta=_delta_message(token),
+                events = tuple(
+                    CompletionEvent(
+                        thread=_response_thread(threads[i], content[i]),
+                        delta=_delta_message(tokens[i]),
+                    )
+                    for i in range(bs)
+                    if active[i]
                 )
 
-            # Subsequent iterations process one token at a time
+                yield events if batched else events[0]
+
+            # Subsequent iterations process one token at a time.
             x = next_token_id
             position_mask = ll.model.increment_position_mask(position_mask)
 
-        # Final event
-        yield CompletionEvent(messages=_response_messages(messages, content), delta=None)
+        # Final events
+        events = tuple(
+            CompletionEvent(
+                thread=_response_thread(threads[i], content[i]),
+                delta=None,
+            )
+            for i in range(bs)
+        )
+
+        yield events if batched else events[0]
 
     return wrapper
 
 
-def render_prompt(messages: Sequence[Message]) -> str:
+def render_prompt(thread: Thread) -> str:
     """Render messages as Llama prompt."""
     prompt = ""
 
-    for message in messages:
+    for message in thread.messages:
         prompt += f"<|start_header_id|>{message.role}<|end_header_id|>\n\n"
         prompt += message.content
         prompt += "<|eot_id|>\n"
@@ -143,138 +199,25 @@ def render_prompt(messages: Sequence[Message]) -> str:
     return prompt
 
 
-def _validate_messages(messages: Sequence[MessageLike]) -> Sequence[Message]:
-    validated = tuple(Message(**m) if isinstance(m, dict) else m for m in messages)
-    return cast(Sequence[Message], validated)
+def _batched(input_threads: ThreadLike | Sequence[ThreadLike]) -> bool:
+    return isinstance(input_threads, Sequence)
 
 
-def _response_messages(messages: Sequence[Message], content: str) -> Sequence[Message]:
-    return *messages, Message(role=ROLE, content=content)
+def load_threads(input_threads: ThreadLike | Sequence[ThreadLike]) -> Sequence[Thread]:
+    """Load threads."""
+    if not _batched(input_threads):
+        input_threads = cast(Sequence[ThreadLike], [input_threads])
+
+    threads: Sequence[Thread] = TypeAdapter(Sequence[Thread]).validate_python(input_threads)
+
+    return threads
+
+
+def _response_thread(thread: Thread, content: str) -> Thread:
+    messages = (*thread.messages, Message(role=ROLE, content=content))
+
+    return thread._replace(messages=messages)
 
 
 def _delta_message(token: str) -> Message:
     return Message(role=ROLE, content=token)
-
-
-#
-#
-# def generator(
-#     config: ModelConfig,
-#     model: Model | None = None,
-#     key: Array | None = None,
-#     temperature: float | None = None,
-#     top_k: int | None = None,
-#     top_p: float | None = None,
-#     max_tokens: int | None = None,
-# ) -> Callable[[Sequence[MessageLike]], CompletionResponse]:
-#     """Create a chat generator."""
-#     # Defaults
-#     key = default_arg(key, default_factory=partial(random.key, 42))
-#     max_tokens = default_arg(max_tokens, 32)
-#
-#     # Initialize tokenizer
-#     tokenizer = ll.checkpoint.load_tokenizer(config)
-#
-#     # Initialize model if not provided
-#     if model is None:
-#         params = ll.checkpoint.load_parameters(config)
-#         model = ll.model.create(config, params)
-#
-#     return partial(
-#         _generate,
-#         config=config,
-#         tokenizer=tokenizer,
-#         model=model,
-#         key=key,
-#         temperature=temperature,
-#         top_k=top_k,
-#         top_p=top_p,
-#         max_tokens=max_tokens,
-#     )
-#
-#
-# def _generate(
-#     messages: Sequence[MessageLike],
-#     *,
-#     config: ModelConfig,
-#     tokenizer: Tokenizer,
-#     model: Model,
-#     key: Array,
-#     temperature: float | None,
-#     top_k: int | None,
-#     top_p: float | None,
-#     max_tokens: int,
-# ) -> CompletionResponse:
-#     """Generate next response in conversation."""
-#     # Render prompt
-#     prompt = render_prompt(config, messages)
-#
-#     # Split prompt into tokens
-#     token_ids = tokenizer.encode(prompt)
-#
-#     # Convert token ids into mutable list
-#     token_ids = token_ids.tolist()
-#
-#     content = ""
-#
-#     # Generate output until we get a stop token or we exceed max_tokens.
-#     for _ in range(max_tokens):
-#         # Initialize x with current token ids
-#         x = jnp.array(token_ids)
-#
-#         # Stack token ids into batch size of 1
-#         x = jnp.reshape(x, (1, *x.shape))
-#
-#         # Transform token ids into next token logits
-#         output = ll.model.forward(config, model, x)
-#
-#         # Sample tokens
-#         token_id, key = ll.head.sample_token(
-#             output.logits,
-#             key=key,
-#             temperature=temperature,
-#             top_k=top_k,
-#             top_p=top_p,
-#         )
-#
-#         # Check stopping criteria
-#         if token_id in tokenizer.stop_tokens:
-#             break
-#
-#         # Decode next token
-#         content += tokenizer.decode(token_id)
-#
-#         # Append to end of sequence
-#         token_ids.append(token_id[0])
-#
-#     message = Message(role="assistant", content=content)
-#
-#     return CompletionResponse(messages=(*messages, message))
-#
-#
-# def render_prompt(config: ModelConfig, messages: Sequence[MessageLike]) -> str:
-#     """Render messages."""
-#     prompt = ""
-#
-#     for data in messages:
-#         message = data
-#
-#         # Convert dicts to Messages
-#         if isinstance(message, dict):
-#             message = Message(**message)
-#
-#         if config.training == TrainingLevel.INSTRUCT:
-#             prompt += f"<|start_header_id|>{message.role}<|end_header_id|>\n\n"
-#
-#         prompt += message.content
-#
-#         if config.training == TrainingLevel.PRETRAINED:
-#             prompt += "\n\n"
-#
-#         if config.training == TrainingLevel.INSTRUCT:
-#             prompt += "<|eot_id|>"
-#
-#     if config.training == TrainingLevel.INSTRUCT:
-#         prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
-#
-#     return prompt
