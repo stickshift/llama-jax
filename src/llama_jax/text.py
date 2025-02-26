@@ -44,10 +44,14 @@ def generator(
 
     # Define generator callable
     def wrapper(prompts: str | Sequence[str], **kwargs: Any) -> Iterator[str | Sequence[str]]:
-        nonlocal key, max_tokens
+        nonlocal key, max_tokens, temperature, top_k, top_p
 
         # Override ctor args
         max_tokens = kwargs.get("max_tokens", max_tokens)
+        temperature = kwargs.get("temperature", temperature)
+        top_k = kwargs.get("top_k", top_k)
+        top_p = kwargs.get("top_p", top_p)
+        
         assert max_tokens is not None
 
         # Remember if prompts are batched
@@ -72,7 +76,7 @@ def generator(
             next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
 
             # Yield next token
-            tokens = tokenizer.decode(next_token_id)
+            tokens = tokenizer.decode(next_token_id, special=False)
             yield tokens if batched else tokens[0]
 
             # Subsequent iterations process one token at a time
