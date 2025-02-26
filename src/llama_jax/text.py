@@ -4,6 +4,7 @@ from collections.abc import Iterator, Sequence
 from typing import Any, Callable
 
 from jax import Array, random
+from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, TrainingLevel
@@ -51,7 +52,7 @@ def generator(
         temperature = kwargs.get("temperature", temperature)
         top_k = kwargs.get("top_k", top_k)
         top_p = kwargs.get("top_p", top_p)
-        
+
         assert max_tokens is not None
 
         # Remember if prompts are batched
@@ -66,6 +67,9 @@ def generator(
         # Initialize x with entire sequence on first pass
         x = token_ids
 
+        # All sequences in batch start off active
+        active = jnp.ones(x.shape[0], dtype=bool)
+
         # Sample up to max tokens
         for _ in range(max_tokens):
             # Transform x into logits
@@ -75,12 +79,19 @@ def generator(
             key, subkey = random.split(key) if key is not None else (None, None)
             next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
 
+            # Track active sequences
+            is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
+            active = active & ~is_stop_token
+            if not jnp.any(active):
+                break
+
             # Yield next token
             tokens = tokenizer.decode(next_token_id, special=False)
             yield tokens if batched else tokens[0]
 
-            # Subsequent iterations process one token at a time
-            x = next_token_id
-            position_mask = ll.model.increment_position_mask(position_mask)
+            # Subsequent iterations process one token at a time.
+            #   We multiply by active to explicitly zero out inactive sequences moving forward.
+            x = next_token_id * active[:, None]
+            position_mask = ll.model.increment_position_mask(position_mask) * active[:, None]
 
     return wrapper

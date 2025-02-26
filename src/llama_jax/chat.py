@@ -2,6 +2,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Callable, NamedTuple, cast
 
 from jax import Array, random
+from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, TrainingLevel
@@ -92,6 +93,9 @@ def generator(
         # Initialize x with entire sequence on first pass
         x = token_ids
 
+        # All sequences in batch start off active
+        active = jnp.ones(x.shape[0], dtype=bool)
+
         content = ""
 
         # Sample up to max tokens
@@ -103,8 +107,10 @@ def generator(
             key, subkey = random.split(key) if key is not None else (None, None)
             next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
 
-            # Break on stop tokens
-            if next_token_id in tokenizer.stop_tokens:
+            # Track active sequences
+            is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
+            active = active & ~is_stop_token
+            if not jnp.any(active):
                 break
 
             # Decode next token
@@ -119,9 +125,10 @@ def generator(
                     delta=_delta_message(token),
                 )
 
-            # Subsequent iterations process one token at a time
-            x = next_token_id
-            position_mask = ll.model.increment_position_mask(position_mask)
+            # Subsequent iterations process one token at a time.
+            #   We multiply by active to explicitly zero out inactive sequences moving forward.
+            x = next_token_id * active[:, None]
+            position_mask = ll.model.increment_position_mask(position_mask) * active[:, None]
 
         # Final event
         yield CompletionEvent(messages=_response_messages(messages, content), delta=None)
