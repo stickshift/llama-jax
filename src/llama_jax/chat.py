@@ -1,11 +1,11 @@
 from collections.abc import Iterator, Mapping, Sequence
 import logging
-from typing import Any, Callable, NamedTuple, Annotated
+from typing import Annotated, Any, Callable, NamedTuple, cast
 from uuid import uuid4
 
 from jax import Array, random
 from jax import numpy as jnp
-from pydantic import TypeAdapter, BeforeValidator
+from pydantic import BeforeValidator, TypeAdapter
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, TrainingLevel
@@ -36,9 +36,23 @@ MessageLike = Mapping[str, str] | Message
 
 class Thread(NamedTuple):
     """Multiple messages strong together in a dialog."""
+
     id: str
 
     messages: Sequence[Message]
+
+
+def _validate_thread(data: Any) -> Any:
+    if not isinstance(data, dict):
+        return data
+
+    if "id" not in data:
+        data["id"] = uuid4().hex
+
+    return data
+
+
+Thread = Annotated[Thread, BeforeValidator(_validate_thread)]  # type: ignore
 
 
 ThreadLike = Mapping[str, str] | Thread
@@ -99,7 +113,7 @@ def generator(
         # Validate
         threads, batched = _validate_threads(input_threads)
         bs = len(threads)
-        
+
         # Render prompts and tokenize
         prompts = tuple(render_prompt(thread.messages) for thread in threads)
         token_ids, position_mask = tokenizer.encode(prompts)
@@ -144,7 +158,8 @@ def generator(
                         thread=_response_thread(threads[i], content[i]),
                         delta=_delta_message(tokens[i]),
                     )
-                    for i in range(bs) if active[i]
+                    for i in range(bs)
+                    if active[i]
                 )
 
                 yield events if batched else events[0]
@@ -181,36 +196,21 @@ def render_prompt(messages: Sequence[Message]) -> str:
     return prompt
 
 
-def _validate_thread(data: Any) -> Any:
-    if not isinstance(data, dict):
-        return data
-
-    if "id" not in data:
-        data["id"] = uuid4().hex
-
-    return data
-
-
-ValidatedThread = Annotated[Thread, BeforeValidator(_validate_thread)]
-
-
 def _validate_threads(input_threads: ThreadLike | Sequence[ThreadLike]) -> tuple[Sequence[Thread], bool]:
     batched = isinstance(input_threads, Sequence)
     if not batched:
-        input_threads = [input_threads]
+        input_threads = cast(Sequence[ThreadLike], [input_threads])
 
-    ta = TypeAdapter(Sequence[ValidatedThread])
-    threads = ta.validate_python(input_threads)
+    threads = TypeAdapter(Sequence[Thread]).validate_python(input_threads)  # type: ignore[var-annotated]
 
     return threads, batched
 
 
 def _response_thread(thread: Thread, content: str) -> Thread:
     messages = (*thread.messages, Message(role=ROLE, content=content))
-    
+
     return thread._replace(messages=messages)
 
 
 def _delta_message(token: str) -> Message:
     return Message(role=ROLE, content=token)
-

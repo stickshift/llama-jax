@@ -21,7 +21,7 @@ def test_single_thread():
     # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # Chat generator w/ 
+    # Chat generator w/
     #   * token sampling disabled
     generator = ll.chat.generator(config, temperature=0)
 
@@ -76,7 +76,7 @@ def test_multi_thread():
     # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # Chat generator w/ 
+    # Chat generator w/
     #   * token sampling disabled
     generator = ll.chat.generator(config, temperature=0)
 
@@ -96,7 +96,6 @@ def test_multi_thread():
 
     # each event should have ...
     for event in events:
-
         # 2 messages and no delta
         assert len(event.thread.messages) == 2
         assert event.delta is None
@@ -130,7 +129,7 @@ def test_single_thread_streaming():
     # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # Chat generator w/ 
+    # Chat generator w/
     #   * token sampling disabled
     #   * streaming
     generator = ll.chat.generator(config, temperature=0, stream=True)
@@ -197,7 +196,7 @@ def test_multi_thread_streaming():
     # I loaded config for 3.2 3B Instruct checkpoint
     config = ll.checkpoint.load_config("Llama3.2-3B-Instruct")
 
-    # Chat generator w/ 
+    # Chat generator w/
     #   * token sampling disabled
     #   * streaming
     #   * higher token limit than necessary
@@ -228,4 +227,3 @@ def test_multi_thread_streaming():
 
     # thread1 should have more events than thread0
     assert len(repository["thread1"]) > len(repository["thread0"])
-
