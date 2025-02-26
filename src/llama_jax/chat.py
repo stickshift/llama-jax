@@ -17,7 +17,9 @@ __all__ = [
     "Message",
     "MessageLike",
     "Thread",
+    "ThreadLike",
     "generator",
+    "load_threads",
 ]
 
 logger = logging.getLogger(__name__)
@@ -111,11 +113,12 @@ def generator(
         assert stream is not None
 
         # Validate
-        threads, batched = _validate_threads(input_threads)
+        batched = _batched(input_threads)
+        threads = load_threads(input_threads)
         bs = len(threads)
 
         # Render prompts and tokenize
-        prompts = tuple(render_prompt(thread.messages) for thread in threads)
+        prompts = tuple(render_prompt(thread) for thread in threads)
         token_ids, position_mask = tokenizer.encode(prompts)
 
         # Initialize key/value cache
@@ -182,11 +185,11 @@ def generator(
     return wrapper
 
 
-def render_prompt(messages: Sequence[Message]) -> str:
+def render_prompt(thread: Thread) -> str:
     """Render messages as Llama prompt."""
     prompt = ""
 
-    for message in messages:
+    for message in thread.messages:
         prompt += f"<|start_header_id|>{message.role}<|end_header_id|>\n\n"
         prompt += message.content
         prompt += "<|eot_id|>\n"
@@ -196,14 +199,18 @@ def render_prompt(messages: Sequence[Message]) -> str:
     return prompt
 
 
-def _validate_threads(input_threads: ThreadLike | Sequence[ThreadLike]) -> tuple[Sequence[Thread], bool]:
-    batched = isinstance(input_threads, Sequence)
-    if not batched:
+def _batched(input_threads: ThreadLike | Sequence[ThreadLike]) -> bool:
+    return isinstance(input_threads, Sequence)
+
+
+def load_threads(input_threads: ThreadLike | Sequence[ThreadLike]) -> Sequence[Thread]:
+    """Load threads."""
+    if not _batched(input_threads):
         input_threads = cast(Sequence[ThreadLike], [input_threads])
 
-    threads = TypeAdapter(Sequence[Thread]).validate_python(input_threads)  # type: ignore[var-annotated]
+    threads: Sequence[Thread] = TypeAdapter(Sequence[Thread]).validate_python(input_threads)
 
-    return threads, batched
+    return threads
 
 
 def _response_thread(thread: Thread, content: str) -> Thread:
