@@ -13,6 +13,7 @@ dependencies = [
     "click>=8.1.7",
     "jax-metal>=0.1.1",
     "pandas>=2.2.3",
+    "pydantic>=2.10.4",
     "tiktoken>=0.8.0",
     "tqdm>=4.67.1",
 ]
