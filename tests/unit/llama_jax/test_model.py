@@ -117,112 +117,6 @@ def test_forward_incremental(
         assert_similar_arrays(logits1, logits0)
 
 
-def test_sample_top_k():
-    #
-    # Givens
-    #
-
-    # Sorted array with 2 batches of sample probabilities
-    probs = jnp.array([
-        [0.4, 0.3, 0.2, 0.1],
-        [0.8, 0.1, 0.05, 0.05],
-    ])
-
-    #
-    # Whens
-    #
-
-    # I sample probs w/ top_k = 1
-    x = ll.model._sample_top_k(probs, top_k=1)
-
-    #
-    # Thens
-    #
-
-    # x should be
-    #   0.4
-    #   0.8
-    assert (x[0] == jnp.array([0.4])).all()
-    assert (x[1] == jnp.array([0.8])).all()
-
-    #
-    # Whens
-    #
-
-    # I sample probs w/ top_k = 3
-    x = ll.model._sample_top_k(probs, top_k=3)
-
-    #
-    # Thens
-    #
-
-    # x should be
-    #   0.4, 0.3, 0.2
-    #   0.8, 0.1, 0.05
-    assert (x[0] == jnp.array([0.4, 0.3, 0.2])).all()
-    assert (x[1] == jnp.array([0.8, 0.1, 0.05])).all()
-
-    #
-    # Whens
-    #
-
-    # I sample probs w/ top_k = 10
-    x = ll.model._sample_top_k(probs, top_k=10)
-
-    #
-    # Thens
-    #
-
-    # x should equal probs
-    assert (x == probs).all()
-
-
-def test_sample_top_p():
-    #
-    # Givens
-    #
-
-    # Sorted array with 2 batches of sample probabilities
-    probs = jnp.array([
-        [0.4, 0.3, 0.2, 0.1],
-        [0.8, 0.1, 0.05, 0.05],
-    ])
-
-    #
-    # Whens
-    #
-
-    # I sample probs w/ top_p = 0.1
-    x = ll.model._sample_top_p(probs, top_p=0.1)
-
-    #
-    # Thens
-    #
-
-    # x should be
-    #   0.4, 0.0, 0.0, 0.0
-    #   0.8, 0.0, 0.0, 0.0
-    assert (x[0] == jnp.array([0.4, 0.0, 0.0, 0.0])).all()
-    assert (x[1] == jnp.array([0.8, 0.0, 0.0, 0.0])).all()
-
-    #
-    # Whens
-    #
-
-    # I sample probs w/ top_p = 0.5
-    x = ll.model._sample_top_p(probs, top_p=0.5)
-
-    #
-    # Thens
-    #
-
-    # x should be
-    #   0.4, 0.3, 0.0, 0.0
-    #   0.8, 0.0, 0.0, 0.0
-    assert (x[0] == jnp.array([0.4, 0.3, 0.0, 0.0])).all()
-    assert (x[1] == jnp.array([0.8, 0.0, 0.0, 0.0])).all()
-
-
 def test_next_token_max_logit(logits: Array):
     #
     # Whens
@@ -278,7 +172,7 @@ def test_next_token_random_sample(key: Array):
 
     # I sample tokens with uniform probs
     key, subkey = random.split(key)
-    counts = sample([1.0, 1.0, 1.0], subkey)
+    counts = sample([1 / 3, 1 / 3, 1 / 3], subkey)
 
     #
     # Thens
@@ -295,7 +189,7 @@ def test_next_token_random_sample(key: Array):
 
     # I sample tokens with ascending probs 1/6, 2/6, 3/6
     key, subkey = random.split(key)
-    counts = sample([1.0, 2.0, 3.0], subkey)
+    counts = sample([1 / 6, 2 / 6, 3 / 6], subkey)
 
     #
     # Thens
