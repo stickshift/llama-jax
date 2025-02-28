@@ -23,7 +23,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     #
 
     # I record shape of original layer cache
-    shape0 = jax.tree.map(lambda x: x.shape, layer_kvc)
+    shape0 = (layer_kvc.key_cache.shape, layer_kvc.value_cache.shape)
 
     # I initialize x w/ token embeddings
     x = token_embeddings
@@ -48,7 +48,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     layer_kvc, k1, v1 = ll.kv_cache.apply(layer_kvc, keys=k0, values=v0)
 
     # I record shape of updated layer cache
-    shape1 = jax.tree.map(lambda x: x.shape, layer_kvc)
+    shape1 = (layer_kvc.key_cache.shape, layer_kvc.value_cache.shape)
 
     #
     # Thens
@@ -89,7 +89,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     layer_kvc, k3, v3 = ll.kv_cache.apply(layer_kvc, keys=k2, values=v2)
 
     # I record shape of updated layer cache
-    shape2 = jax.tree.map(lambda x: x.shape, layer_kvc)
+    shape2 = (layer_kvc.key_cache.shape, layer_kvc.value_cache.shape)
 
     #
     # Thens

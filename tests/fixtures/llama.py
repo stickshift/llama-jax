@@ -94,10 +94,10 @@ def token_ids(config: ModelConfig, bs: int, n: int) -> Array:
 
 
 @pytest.fixture(scope="session")
-def position_mask(bs: int, n: int) -> Array:
+def position_mask(config: ModelConfig, bs: int, n: int) -> Array:
     """Sample position mask."""
 
-    return jnp.ones(bs * n, dtype=jnp.int32).reshape(bs, n)
+    return ll.position_mask.create(jnp.ones((bs, n), dtype=int), max_tokens=config.max_tokens)
 
 
 @pytest.fixture(scope="session")

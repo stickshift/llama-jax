@@ -42,6 +42,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
 def test_forward_full_sequence(
     config: ModelConfig,
     params: ModelParameters,
+    bs: int,
     token_ids: Array,
     position_mask: Array,
     logits: Array,
@@ -62,8 +63,10 @@ def test_forward_full_sequence(
     # Whens
     #
 
+    kv_cache = ll.kv_cache.create(config, bs)
+
     # I transform entire sequence into logits
-    logits1 = ll.model.forward(config, model, token_ids, position_mask)
+    logits1, kv_cache = ll.model.forward(config, model, token_ids, position_mask, kv_cache=kv_cache)
 
     #
     # Thens
@@ -102,13 +105,12 @@ def test_forward_incremental(
     for i in range(n):
         # I look up current token and mask
         x = token_ids[:, i : i + 1]
-        m = position_mask[:, i : i + 1]
 
         # I look up expected logits for current token
         logits0 = logits[:, i]
 
         # I transform x into logits
-        logits1, kv_cache = ll.model.forward(config, model, x, m, kv_cache=kv_cache)
+        logits1, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
 
         #
         # Thens
@@ -232,7 +234,7 @@ def test_next_token_random_sample(key: Array):
     assert counts[2] > n / 2
 
 
-def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer, key: Array):
+def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokenizer: Tokenizer):
     #
     # Givens
     #
@@ -243,11 +245,11 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
         "one two three",
     )
 
-    # I split prompts into tokens
-    token_ids, position_mask = tokenizer.encode(prompts)
-
     # I created a Model
     model = ll.model.create(config, params)
+
+    # I split prompts into tokens
+    token_ids, position_mask = tokenizer.encode(prompts)
 
     #
     # Whens
@@ -259,12 +261,10 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
         logits = ll.model.forward(config, model, token_ids, position_mask)
 
         # Sample next token
-        key, subkey = random.split(key)
-        next_token_id = ll.model.next_token(logits, key=subkey, temperature=0)
+        next_token_id = ll.model.next_token(logits, temperature=0)
 
         # Process all tokens on next pass
         token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
-        position_mask = jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)
 
     # I decode tokens
     prompts = tokenizer.decode(token_ids, special=False)
@@ -291,14 +291,14 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
         "one two three",
     )
 
+    # I created a Model
+    model = ll.model.create(config, params)
+
     # I split prompts into tokens
     token_ids, position_mask = tokenizer.encode(prompts)
 
     # I initialized key/value cache
     kv_cache = ll.kv_cache.create(config, bs=token_ids.shape[0])
-
-    # I created a Model
-    model = ll.model.create(config, params)
 
     #
     # Whens
@@ -319,7 +319,6 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
 
         # Process generated token on next pass
         x = next_token_id
-        position_mask = jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)
 
     # I decode tokens
     prompts = tokenizer.decode(token_ids, special=False)

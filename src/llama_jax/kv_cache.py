@@ -18,7 +18,7 @@ __all__ = [
 class LayerKVCache(NamedTuple):
     """Key-Value cache for single attention layer."""
 
-    n: Array
+    n: int
 
     key_cache: Array
 
@@ -35,7 +35,7 @@ def create(config: ModelConfig, bs: int) -> KVCache:
     buffer = jnp.zeros((bs, config.n_kv_heads, config.max_tokens, config.d_head), dtype=config.dtype)
 
     # All layers start with same layer kvc
-    layer_kvc = LayerKVCache(n=jnp.array(0), key_cache=buffer, value_cache=buffer)
+    layer_kvc = LayerKVCache(n=0, key_cache=buffer, value_cache=buffer)
 
     return tuple(layer_kvc for _ in range(config.n_layers))
 
@@ -58,9 +58,20 @@ def apply(layer_kvc: LayerKVCache, *, keys: Array, values: Array) -> tuple[Layer
     value_cache = jax.lax.dynamic_update_slice(layer_kvc.value_cache, values, (0, 0, layer_kvc.n, 0))
 
     layer_kvc = LayerKVCache(n=n, key_cache=key_cache, value_cache=value_cache)
+    
+    # Select the first n keys/values along axis 2 in cache
+    indices = jnp.arange(layer_kvc.n)[None, None, :, None]
+    keys = jnp.take_along_axis(layer_kvc.key_cache, indices, axis=2)
+    values = jnp.take_along_axis(layer_kvc.value_cache, indices, axis=2)
 
-    keys = layer_kvc.key_cache[:, :, : layer_kvc.n, :]
-    values = layer_kvc.value_cache[:, :, : layer_kvc.n, :]
+    # start_indices = (0, 0, 0, 0)
+    # limit_indices = (keys.shape[0], keys.shape[1], layer_kvc.n, keys.shape[3])
+    
+    # keys = jax.lax.slice(layer_kvc.key_cache, start_indices, limit_indices)
+    # values = jax.lax.slice(layer_kvc.value_cache, start_indices, limit_indices)
+
+    # keys = layer_kvc.key_cache[:, :, : layer_kvc.n, :]
+    # values = layer_kvc.value_cache[:, :, : layer_kvc.n, :]
 
     return layer_kvc, keys, values
 

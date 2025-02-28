@@ -89,9 +89,7 @@ def generator(
             tokens = tokenizer.decode(next_token_id, special=False)
             yield tokens if batched else tokens[0]
 
-            # Subsequent iterations process one token at a time.
-            #   We multiply by active to explicitly zero out inactive sequences moving forward.
-            x = next_token_id * active[:, None]
-            position_mask = ll.model.increment_position_mask(position_mask) * active[:, None]
+            # Subsequent iterations process one token at a time
+            x = next_token_id
 
     return wrapper

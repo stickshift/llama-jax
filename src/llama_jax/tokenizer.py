@@ -6,6 +6,7 @@ from jax import numpy as jnp
 import tiktoken
 from tiktoken.load import load_tiktoken_bpe
 
+import llama_jax as ll
 from llama_jax.tools import default_arg
 
 __all__ = [
@@ -39,7 +40,7 @@ _pat_str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?
 class Tokenizer:
     """Llama3 tokenizer based on tiktoken and the llama-models implementation."""
 
-    def __init__(self, model_path: Path | str):
+    def __init__(self, *, model_path: Path | str, max_tokens: int):
         # Convert to str
         model_path = str(model_path)
 
@@ -56,6 +57,7 @@ class Tokenizer:
             special_tokens=self.special_tokens,
         )
 
+        self.max_tokens = max_tokens
         self.n_words: int = num_base_tokens + len(self.special_tokens)
         self.bos_id: int = self.special_tokens["<|begin_of_text|>"]
         self.eos_id: int = self.special_tokens["<|end_of_text|>"]
@@ -70,7 +72,10 @@ class Tokenizer:
         ])
 
     def encode(
-        self, prompts: str | Sequence[str], bos: bool | None = None, eos: bool | None = None
+        self,
+        prompts: str | Sequence[str],
+        bos: bool | None = None,
+        eos: bool | None = None,
     ) -> tuple[Array, Array]:
         """Encodes a list of prompts into an array of token IDs."""
         # Defaults
@@ -106,7 +111,10 @@ class Tokenizer:
         token_ids = jnp.array(tids)
 
         # Calculate mask from padding
-        position_mask = jnp.where(token_ids == self.pad_id, 0, 1)
+        position_mask = ll.position_mask.create(
+            jnp.where(token_ids == self.pad_id, 0, 1),
+            max_tokens=self.max_tokens,
+        )
 
         return token_ids, position_mask
 
