@@ -4,7 +4,6 @@ import llama_jax as ll
 from llama_jax.attention import Attention
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
-from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rope import Rope
 
 
@@ -30,6 +29,7 @@ def test_forward(
     params: ModelParameters,
     rope: Rope,
     mask: Array,
+    bs: int,
     token_embeddings: Array,
 ):
     #
@@ -40,7 +40,7 @@ def test_forward(
     layer = ll.layer.create(config, params, "layers.0")
 
     # I created a key/value cache
-    kv_cache = LayerKVCache()
+    layer_kvc = ll.kv_cache.create(config, bs=bs)[0]
 
     # Sample embeddings
     x = token_embeddings
@@ -50,7 +50,7 @@ def test_forward(
     #
 
     # I transform x w/ layer
-    y, kv_cache = ll.layer.forward(config, layer, rope, mask, x, kv_cache)
+    y, layer_kvc = ll.layer.forward(config, layer, rope, mask, x, layer_kvc)
 
     #
     # Thens
@@ -58,7 +58,3 @@ def test_forward(
 
     # y.shape didn't change
     assert y.shape == x.shape
-
-    # kv_cache should be populated
-    assert kv_cache.keys is not None
-    assert kv_cache.values is not None

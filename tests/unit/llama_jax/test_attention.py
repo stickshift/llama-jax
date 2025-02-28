@@ -3,7 +3,6 @@ from jax import numpy as jnp
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
-from llama_jax.kv_cache import LayerKVCache
 from llama_jax.rope import Rope
 
 from tests.fixtures.jax_fixtures import assert_similar_arrays
@@ -87,6 +86,7 @@ def test_forward(
     params: ModelParameters,
     rope: Rope,
     mask: Array,
+    bs: int,
     token_embeddings: Array,
     attention_output: Array,
 ):
@@ -98,7 +98,7 @@ def test_forward(
     attention = ll.attention.create(config, params, "layers.0.attention")
 
     # I created a key/value cache
-    kv_cache = LayerKVCache()
+    layer_kvc = ll.kv_cache.create(config, bs=bs)[0]
 
     # Sample embeddings
     x = token_embeddings
@@ -108,7 +108,7 @@ def test_forward(
     #
 
     # I transform x w/ attention
-    y, kv_cache = ll.attention.forward(config, attention, rope, mask, x, kv_cache)
+    y, layer_kvc = ll.attention.forward(config, attention, rope, mask, x, layer_kvc)
 
     #
     # Thens

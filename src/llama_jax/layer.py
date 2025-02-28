@@ -43,16 +43,16 @@ def forward(
     rope: Rope,
     mask: Array,
     x: Array,
-    kv_cache: LayerKVCache,
+    layer_kvc: LayerKVCache,
 ) -> tuple[Array, LayerKVCache]:
     """Transform x using attention and feedforward network."""
     # Sanity check
     assert x.ndim == 3
 
     # Attention
-    x, kv_cache = ll.attention.forward(config, state.attention, rope, mask, x, kv_cache)
+    x, layer_kvc = ll.attention.forward(config, state.attention, rope, mask, x, layer_kvc)
 
     # FFN
     x = ll.ffn.forward(config, state.ffn, x)
 
-    return x, kv_cache
+    return x, layer_kvc

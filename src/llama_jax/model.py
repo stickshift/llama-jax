@@ -75,7 +75,7 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     return model
 
 
-@partial(jax.jit, static_argnames=("config",))
+# @partial(jax.jit, static_argnames=("config",))
 def forward(
     config: ModelConfig,
     state: Model,
@@ -93,7 +93,7 @@ def forward(
     external_cache = kv_cache is not None
 
     # Defaults
-    kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config))
+    kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config, token_ids.shape[0]))
 
     # Sanity check - Note token_ids.shape != position_mask.shape when decoding generated tokens
     assert token_ids.ndim == position_mask.ndim == 2

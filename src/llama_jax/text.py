@@ -58,11 +58,11 @@ def generator(
         # Remember if prompts are batched
         batched = not isinstance(prompts, str)
 
-        # Initialize key/value cache
-        kv_cache = ll.kv_cache.create(config)
-
         # Split prompts into tokens
         token_ids, position_mask = tokenizer.encode(prompts)
+
+        # Initialize key/value cache
+        kv_cache = ll.kv_cache.create(config, bs=token_ids.shape[0])
 
         # Initialize x with entire sequence on first pass
         x = token_ids

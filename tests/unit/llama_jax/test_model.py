@@ -76,6 +76,7 @@ def test_forward_full_sequence(
 def test_forward_incremental(
     config: ModelConfig,
     params: ModelParameters,
+    bs: int,
     n: int,
     token_ids: Array,
     position_mask: Array,
@@ -91,7 +92,7 @@ def test_forward_incremental(
     model = ll.model.create(config, params)
 
     # I initialized key/value cache
-    kv_cache = ll.kv_cache.create(config)
+    kv_cache = ll.kv_cache.create(config, bs)
 
     #
     # Whens
@@ -294,7 +295,7 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
     token_ids, position_mask = tokenizer.encode(prompts)
 
     # I initialized key/value cache
-    kv_cache = ll.kv_cache.create(config)
+    kv_cache = ll.kv_cache.create(config, bs=token_ids.shape[0])
 
     # I created a Model
     model = ll.model.create(config, params)

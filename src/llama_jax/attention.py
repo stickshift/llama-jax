@@ -134,7 +134,7 @@ def forward(
     rope: Rope,
     mask: Array,
     x: Array,
-    kv_cache: LayerKVCache,
+    layer_kvc: LayerKVCache,
 ) -> tuple[Array, LayerKVCache]:
     """Transform x using grouped query attention (GQA)."""
     # Save residuals
@@ -155,9 +155,7 @@ def forward(
     v = split_heads(v, config.n_kv_heads)
 
     # Update key/value cache
-    k = ll.kv_cache.apply(kv_cache.keys, k)
-    v = ll.kv_cache.apply(kv_cache.values, v)
-    kv_cache = LayerKVCache(keys=k, values=v)
+    layer_kvc, k, v = ll.kv_cache.apply(layer_kvc, keys=k, values=v)
 
     # Expand key/value groups
     reps = config.n_heads // config.n_kv_heads
@@ -197,4 +195,4 @@ def forward(
     # Merge outputs with residuals
     x = residual + x
 
-    return x, kv_cache
+    return x, layer_kvc
