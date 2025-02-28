@@ -169,7 +169,6 @@ def generator(
 
             # Subsequent iterations process one token at a time.
             x = next_token_id
-            position_mask = ll.model.increment_position_mask(position_mask)
 
         # Final events
         events = tuple(

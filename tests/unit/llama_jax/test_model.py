@@ -102,13 +102,12 @@ def test_forward_incremental(
     for i in range(n):
         # I look up current token and mask
         x = token_ids[:, i : i + 1]
-        m = position_mask[:, i : i + 1]
 
         # I look up expected logits for current token
         logits0 = logits[:, i]
 
         # I transform x into logits
-        logits1, kv_cache = ll.model.forward(config, model, x, m, kv_cache=kv_cache)
+        logits1, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
 
         #
         # Thens
@@ -264,7 +263,6 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
 
         # Process all tokens on next pass
         token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
-        position_mask = jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)
 
     # I decode tokens
     prompts = tokenizer.decode(token_ids, special=False)
@@ -319,7 +317,6 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
 
         # Process generated token on next pass
         x = next_token_id
-        position_mask = jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)
 
     # I decode tokens
     prompts = tokenizer.decode(token_ids, special=False)

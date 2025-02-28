@@ -21,10 +21,8 @@ from llama_jax.tools import default_arg
 
 __all__ = [
     "Model",
-    "attention_mask",
     "create",
     "forward",
-    "increment_position_mask",
     "next_token",
 ]
 
@@ -95,8 +93,8 @@ def forward(
     # Defaults
     kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config, token_ids.shape[0]))
 
-    # Sanity check - Note token_ids.shape != position_mask.shape when decoding generated tokens
-    assert token_ids.ndim == position_mask.ndim == 2
+    # Sanity check
+    assert token_ids.ndim == 2
 
     # Map tokens to embeddings
     x = ll.embeddings.forward(config, state.embeddings, token_ids)
@@ -105,7 +103,7 @@ def forward(
     kvc = MutableKVCache(kv_cache)
 
     # Create mask
-    mask = attention_mask(config, position_mask)
+    mask = ll.attention.attention_mask(config, position_mask)
 
     # Apply layers
     for i, layer in enumerate(state.layers):
@@ -202,39 +200,3 @@ def next_token(
     next_token_id = jnp.take_along_axis(indices, selected, axis=-1)
 
     return next_token_id
-
-
-def attention_mask(config: ModelConfig, position_mask: Array) -> Array:
-    """Compute attention mask."""
-    # Sanity check
-    assert position_mask.dtype == jnp.int32
-
-    # Start with (max_tokens, max_tokens) causal mask
-    causal_mask = jnp.tril(jnp.ones((config.max_tokens, config.max_tokens), dtype=jnp.int32))
-
-    # Pad position mask from (bs, n) to (bs, max_tokens)
-    position_mask = jnp.pad(
-        position_mask,
-        (
-            (0, 0),  # (before0, after0)
-            (0, config.max_tokens - position_mask.shape[1]),  # (before1, after1)
-        ),
-        constant_values=1,
-    )
-
-    # Combine masks: m[b, i, j] = causal_mask[i, j] AND position_mask[b, j]
-    #   1) Broadcast causal_mask from (n, n) to (bs, n, n)
-    #   2) Broadcast position mask from (bs, n) to (bs, n, n)
-    #   3) Logically AND them together
-
-    m = causal_mask[None, :, :] & position_mask[:, None, :]
-
-    # Convert to attention mask w/ 0s and -infs
-    m = jnp.where(m, 0, -jnp.inf)
-
-    return m
-
-
-def increment_position_mask(position_mask: Array) -> Array:
-    """Pad position mask with a 1 to represent latest token."""
-    return jnp.pad(position_mask, ((0, 0), (0, 1)), constant_values=1)

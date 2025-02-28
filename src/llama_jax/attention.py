@@ -14,6 +14,8 @@ from llama_jax.rope import Rope
 
 __all__ = [
     "Attention",
+    "attention",
+    "attention_mask",
     "combine_heads",
     "create",
     "forward",
@@ -112,6 +114,28 @@ def combine_heads(x: Array) -> Array:
     y = jnp.reshape(y, shape)
 
     return y
+
+
+def attention_mask(config: ModelConfig, position_mask: Array) -> Array:
+    """Compute attention mask."""
+    # Sanity check
+    assert position_mask.dtype == jnp.int32
+    assert position_mask.shape[-1] == config.max_tokens
+
+    # Start with (max_tokens, max_tokens) causal mask
+    causal_mask = jnp.tril(jnp.ones((config.max_tokens, config.max_tokens), dtype=jnp.int32))
+
+    # Combine masks: m[b, i, j] = causal_mask[i, j] AND position_mask[b, j]
+    #   1) Broadcast causal_mask from (n, n) to (bs, n, n)
+    #   2) Broadcast position mask from (bs, n) to (bs, n, n)
+    #   3) Logically AND them together
+
+    m = causal_mask[None, :, :] & position_mask[:, None, :]
+
+    # Convert to attention mask w/ 0s and -infs
+    m = jnp.where(m, 0, -jnp.inf)
+
+    return m
 
 
 def attention(config: ModelConfig, q: Array, k: Array, v: Array, m: Array) -> Array:
