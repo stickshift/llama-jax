@@ -8,7 +8,7 @@ import llama_jax as ll
 from llama_jax.attention import Attention
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.ffn import FFN
-from llama_jax.kv_cache import LayerKVCache
+from llama_jax.kvc import LayerKVCache
 from llama_jax.rope import Rope
 
 __all__ = [

@@ -40,7 +40,7 @@ def test_forward(
     layer = ll.layer.create(config, params, "layers.0")
 
     # I created a key/value cache
-    layer_kvc = ll.kv_cache.create(config, bs=bs)[0]
+    layer_kvc = ll.kvc.create(config, bs=bs)[0]
 
     # Sample embeddings
     x = token_embeddings

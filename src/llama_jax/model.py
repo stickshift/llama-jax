@@ -14,7 +14,7 @@ import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.embeddings import Embeddings
 from llama_jax.head import Head
-from llama_jax.kv_cache import KVCache, MutableKVCache
+from llama_jax.kvc import KVCache, MutableKVCache
 from llama_jax.layer import Layer
 from llama_jax.rope import Rope
 from llama_jax.tools import default_arg
@@ -73,14 +73,14 @@ def create(config: ModelConfig, params: ModelParameters) -> Model:
     return model
 
 
-@partial(jax.jit, static_argnames=("config",))
+# @partial(jax.jit, static_argnames=("config",))
 def forward(
     config: ModelConfig,
     state: Model,
     token_ids: Array,
     position_mask: Array,
     *,
-    kv_cache: KVCache | None = None,
+    kvc: KVCache | None = None,
 ) -> Array | tuple[Array, KVCache]:
     """Transform token_ids into next token logits."""
     # Validate
@@ -88,10 +88,10 @@ def forward(
         raise ValueError(f"Number of tokens exceed config.max_tokens {config.max_tokens}")
 
     # Remember if cache was provided
-    external_cache = kv_cache is not None
+    external_cache = kvc is not None
 
     # Defaults
-    kv_cache = default_arg(kv_cache, default_factory=partial(ll.kv_cache.create, config, token_ids.shape[0]))
+    kvc = default_arg(kvc, default_factory=partial(ll.kvc.create, config, token_ids.shape[0]))
 
     # Sanity check - Note token_ids.shape != position_mask.shape when decoding generated tokens
     assert token_ids.ndim == position_mask.ndim == 2
@@ -100,7 +100,7 @@ def forward(
     x = ll.embeddings.forward(config, state.embeddings, token_ids)
 
     # Create mutable kv cache
-    kvc = MutableKVCache(kv_cache)
+    kvc = MutableKVCache(kvc)
 
     # Create mask
     mask = ll.attention.attention_mask(config, position_mask)
@@ -110,14 +110,14 @@ def forward(
         x, kvc[i] = ll.layer.forward(config, layer, state.rope, mask, x, kvc[i])
 
     # Convert kv caches back into immutable sequence
-    kv_cache = KVCache(kvc)
+    kvc = KVCache(kvc)
 
     # Apply head
     x = ll.head.forward(config, state.head, x, position_mask)
 
     # Return updated cache if provided
     if external_cache:
-        return x, kv_cache
+        return x, kvc
 
     return x
 

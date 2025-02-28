@@ -11,7 +11,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     #
 
     # I created a key/value cache
-    kv_cache = ll.kv_cache.create(config, bs)
+    kv_cache = ll.kvc.create(config, bs)
 
     # I loaded parameters for layer 0
     keys = params["layers.0.attention.wk.weight"].transpose()
@@ -45,7 +45,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     #
 
     # I apply layer cache
-    layer_kvc, k1, v1 = ll.kv_cache.apply(layer_kvc, keys=k0, values=v0)
+    layer_kvc, k1, v1 = ll.kvc.apply(layer_kvc, keys=k0, values=v0)
 
     # I record shape of updated layer cache
     shape1 = (layer_kvc.key_cache.shape, layer_kvc.value_cache.shape)
@@ -86,7 +86,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     #
 
     # I apply layer cache
-    layer_kvc, k3, v3 = ll.kv_cache.apply(layer_kvc, keys=k2, values=v2)
+    layer_kvc, k3, v3 = ll.kvc.apply(layer_kvc, keys=k2, values=v2)
 
     # I record shape of updated layer cache
     shape2 = (layer_kvc.key_cache.shape, layer_kvc.value_cache.shape)

@@ -63,10 +63,10 @@ def test_forward_full_sequence(
     # Whens
     #
 
-    kv_cache = ll.kv_cache.create(config, bs)
+    kv_cache = ll.kvc.create(config, bs)
 
     # I transform entire sequence into logits
-    logits1, kv_cache = ll.model.forward(config, model, token_ids, position_mask, kv_cache=kv_cache)
+    logits1, kv_cache = ll.model.forward(config, model, token_ids, position_mask, kvc=kv_cache)
 
     #
     # Thens
@@ -95,7 +95,7 @@ def test_forward_incremental(
     model = ll.model.create(config, params)
 
     # I initialized key/value cache
-    kv_cache = ll.kv_cache.create(config, bs)
+    kv_cache = ll.kvc.create(config, bs)
 
     #
     # Whens
@@ -110,7 +110,7 @@ def test_forward_incremental(
         logits0 = logits[:, i]
 
         # I transform x into logits
-        logits1, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
+        logits1, kv_cache = ll.model.forward(config, model, x, position_mask, kvc=kv_cache)
 
         #
         # Thens
@@ -298,7 +298,7 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
     token_ids, position_mask = tokenizer.encode(prompts)
 
     # I initialized key/value cache
-    kv_cache = ll.kv_cache.create(config, bs=token_ids.shape[0])
+    kv_cache = ll.kvc.create(config, bs=token_ids.shape[0])
 
     #
     # Whens
@@ -308,7 +308,7 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
     x = token_ids
     for _ in range(3):
         # Transform x into logits
-        logits, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
+        logits, kv_cache = ll.model.forward(config, model, x, position_mask, kvc=kv_cache)
 
         # Sample next token
         key, subkey = random.split(key)

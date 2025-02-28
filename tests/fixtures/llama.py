@@ -269,4 +269,4 @@ def rope(config: ModelConfig, n: int) -> Rope:
 def mask(config: ModelConfig, position_mask: Array) -> Array:
     """Attention mask."""
 
-    return ll.model.attention_mask(config, position_mask)
+    return ll.attention.attention_mask(config, position_mask)

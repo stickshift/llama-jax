@@ -62,7 +62,7 @@ def generator(
         token_ids, position_mask = tokenizer.encode(prompts)
 
         # Initialize key/value cache
-        kv_cache = ll.kv_cache.create(config, bs=token_ids.shape[0])
+        kv_cache = ll.kvc.create(config, bs=token_ids.shape[0])
 
         # Initialize x with entire sequence on first pass
         x = token_ids
@@ -73,7 +73,7 @@ def generator(
         # Sample up to max tokens
         for _ in range(max_tokens):
             # Transform x into logits
-            logits, kv_cache = ll.model.forward(config, model, x, position_mask, kv_cache=kv_cache)
+            logits, kv_cache = ll.model.forward(config, model, x, position_mask, kvc=kv_cache)
 
             # Sample next token
             key, subkey = random.split(key) if key is not None else (None, None)
