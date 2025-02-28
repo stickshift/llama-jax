@@ -10,20 +10,16 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     # Givens
     #
 
-    # I created a key/value cache
-    kv_cache = ll.kv_cache.create(config, bs)
-
     # I loaded parameters for layer 0
     keys = params["layers.0.attention.wk.weight"].transpose()
     values = params["layers.0.attention.wv.weight"].transpose()
-    layer_kvc = kv_cache[0]
+
+    # I created a layer key/value cache
+    layer_kvc = ll.kvc.create(config)[0]
 
     #
     # Whens
     #
-
-    # I record shape of original layer cache
-    shape0 = jax.tree.map(lambda x: x.shape, layer_kvc)
 
     # I initialize x w/ token embeddings
     x = token_embeddings
@@ -45,10 +41,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     #
 
     # I apply layer cache
-    layer_kvc, k1, v1 = ll.kv_cache.apply(layer_kvc, keys=k0, values=v0)
-
-    # I record shape of updated layer cache
-    shape1 = jax.tree.map(lambda x: x.shape, layer_kvc)
+    layer_kvc, k1, v1 = ll.kvc.apply(layer_kvc, keys=k0, values=v0)
 
     #
     # Thens
@@ -57,9 +50,6 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     # k1, v1 should equal k0, v0 since the cache was previously empty
     assert (k1 == k0).all()
     assert (v1 == v0).all()
-
-    # Layer cache should not have changed shape
-    assert shape1 == shape0
 
     #
     # Whens
@@ -86,10 +76,7 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     #
 
     # I apply layer cache
-    layer_kvc, k3, v3 = ll.kv_cache.apply(layer_kvc, keys=k2, values=v2)
-
-    # I record shape of updated layer cache
-    shape2 = jax.tree.map(lambda x: x.shape, layer_kvc)
+    layer_kvc, k3, v3 = ll.kvc.apply(layer_kvc, keys=k2, values=v2)
 
     #
     # Thens
@@ -98,6 +85,3 @@ def test_apply(config: ModelConfig, params: ModelParameters, bs: int, n: int, ke
     # k3, v3 should have length n + 1
     assert k3.shape[-2] == n + 1
     assert v3.shape[-2] == n + 1
-
-    # Layer cache should not have changed shape
-    assert shape2 == shape0

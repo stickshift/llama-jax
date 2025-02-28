@@ -18,24 +18,20 @@ __all__ = [
 class LayerKVCache(NamedTuple):
     """Key-Value cache for single attention layer."""
 
-    n: Array
+    keys: Array | None
 
-    key_cache: Array
-
-    value_cache: Array
+    values: Array | None
 
 
 KVCache = tuple[LayerKVCache, ...]
 MutableKVCache = list[LayerKVCache]
 
 
-def create(config: ModelConfig, bs: int) -> KVCache:
+def create(config: ModelConfig) -> KVCache:
     """Create key-value cache for attention layers."""
-    # Initialize keys and values with (bs, n_heads, max_tokens, d_head) buffer
-    buffer = jnp.zeros((bs, config.n_kv_heads, config.max_tokens, config.d_head), dtype=config.dtype)
 
     # All layers start with same layer kvc
-    layer_kvc = LayerKVCache(n=jnp.array(0), key_cache=buffer, value_cache=buffer)
+    layer_kvc = LayerKVCache(keys=None, values=None)
 
     return tuple(layer_kvc for _ in range(config.n_layers))
 
@@ -53,21 +49,18 @@ def apply(layer_kvc: LayerKVCache, *, keys: Array, values: Array) -> tuple[Layer
     """
     assert keys.shape == values.shape
 
-    n = layer_kvc.n + keys.shape[-2]
-    key_cache = jax.lax.dynamic_update_slice(layer_kvc.key_cache, keys, (0, 0, layer_kvc.n, 0))
-    value_cache = jax.lax.dynamic_update_slice(layer_kvc.value_cache, values, (0, 0, layer_kvc.n, 0))
+    # Append keys and values to cache along axis 2
+    layer_kvc = LayerKVCache(
+        keys=_apply(layer_kvc.keys, keys),
+        values=_apply(layer_kvc.values, values),
+    )
 
-    layer_kvc = LayerKVCache(n=n, key_cache=key_cache, value_cache=value_cache)
-
-    keys = layer_kvc.key_cache[:, :, : layer_kvc.n, :]
-    values = layer_kvc.value_cache[:, :, : layer_kvc.n, :]
-
-    return layer_kvc, keys, values
+    return layer_kvc, layer_kvc.keys, layer_kvc.values
 
 
-# def apply(cached_values: Array | None, values: Array) -> Array:
-#     """Add values to cache and return entire cache."""
-#     if cached_values is None:
-#         return values
+def _apply(cached_values: Array | None, values: Array) -> Array:
+    """Add values to cache and return entire cache."""
+    if cached_values is None:
+        return values
 
-#     return jnp.concat([cached_values, values], axis=-2)
+    return jnp.concat([cached_values, values], axis=-2)

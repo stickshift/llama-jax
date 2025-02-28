@@ -45,8 +45,7 @@ def forward(config: ModelConfig, state: Head, x: Array, position_mask: Array) ->
     bs, n, d_model = x.shape[0], x.shape[1], config.d_model
 
     # Select first n values of position_mask
-    indices = jnp.broadcast_to(jnp.arange(n), (bs, n))
-    mask = jnp.take_along_axis(position_mask, indices, axis=-1)
+    mask = position_mask[:, :n]
 
     # Normalize inputs
     x = ll.rms_norm.forward(config, state.norm, x)

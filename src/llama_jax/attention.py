@@ -8,7 +8,7 @@ from jax.nn import softmax
 
 import llama_jax as ll
 from llama_jax.checkpoint import HEAD_AXIS, MODEL_AXIS, TOKEN_AXIS, ModelConfig, ModelParameters
-from llama_jax.kv_cache import LayerKVCache
+from llama_jax.kvc import LayerKVCache
 from llama_jax.rms_norm import RMSNorm
 from llama_jax.rope import Rope
 
@@ -179,7 +179,7 @@ def forward(
     v = split_heads(v, config.n_kv_heads)
 
     # Update key/value cache
-    layer_kvc, k, v = ll.kv_cache.apply(layer_kvc, keys=k, values=v)
+    layer_kvc, k, v = ll.kvc.apply(layer_kvc, keys=k, values=v)
 
     # Expand key/value groups
     reps = config.n_heads // config.n_kv_heads
