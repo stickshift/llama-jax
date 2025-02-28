@@ -1,4 +1,3 @@
-import jax
 from jax import Array, random
 
 import llama_jax as ll

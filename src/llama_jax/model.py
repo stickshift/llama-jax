@@ -14,7 +14,7 @@ import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters
 from llama_jax.embeddings import Embeddings
 from llama_jax.head import Head
-from llama_jax.kvc import KVCache, MutableKVCache
+from llama_jax.kvc import KVCache
 from llama_jax.layer import Layer
 from llama_jax.rope import Rope
 from llama_jax.tools import default_arg
@@ -99,18 +99,18 @@ def forward(
     # Map tokens to embeddings
     x = ll.embeddings.forward(config, state.embeddings, token_ids)
 
-    # Create mutable kv cache
-    kvc = MutableKVCache(kvc)
-
     # Create mask
     mask = ll.attention.attention_mask(config, position_mask)
 
+    # Create mutable kv cache
+    kvc_layers = list(kvc)
+
     # Apply layers
     for i, layer in enumerate(state.layers):
-        x, kvc[i] = ll.layer.forward(config, layer, state.rope, mask, x, kvc[i])
+        x, kvc_layers[i] = ll.layer.forward(config, layer, state.rope, mask, x, kvc_layers[i])
 
     # Convert kv caches back into immutable sequence
-    kvc = KVCache(kvc)
+    kvc = KVCache(kvc_layers)
 
     # Apply head
     x = ll.head.forward(config, state.head, x, position_mask)

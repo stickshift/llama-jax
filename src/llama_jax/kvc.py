@@ -1,6 +1,5 @@
 from typing import NamedTuple
 
-import jax
 from jax import Array
 from jax import numpy as jnp
 
@@ -29,7 +28,6 @@ MutableKVCache = list[LayerKVCache]
 
 def create(config: ModelConfig) -> KVCache:
     """Create key-value cache for attention layers."""
-
     # All layers start with same layer kvc
     layer_kvc = LayerKVCache(keys=None, values=None)
 
@@ -54,6 +52,9 @@ def apply(layer_kvc: LayerKVCache, *, keys: Array, values: Array) -> tuple[Layer
         keys=_apply(layer_kvc.keys, keys),
         values=_apply(layer_kvc.values, values),
     )
+
+    assert layer_kvc.keys is not None
+    assert layer_kvc.values is not None
 
     return layer_kvc, layer_kvc.keys, layer_kvc.values
 
