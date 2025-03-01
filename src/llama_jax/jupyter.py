@@ -68,6 +68,6 @@ def _submit_chat(session: ChatSession, content: str) -> None:
     """Submit new chat request."""
     key = random.key(seed())
 
-    with ll.render.token_view() as view:
+    with ll.render.token_view(session.config, prompt=content) as view:
         for token in ll.chat.complete(session, content=content, key=key):
             view.add_token(token)

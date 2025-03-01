@@ -2,7 +2,6 @@ from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, wait
 import logging
 from queue import Queue
-from sys import stdout
 from time import perf_counter_ns as seed
 from typing import Any, NamedTuple
 from uuid import uuid4
@@ -10,6 +9,7 @@ from uuid import uuid4
 from jax import Array, random
 from jax import numpy as jnp
 from pydantic import TypeAdapter
+from tqdm.auto import tqdm
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
@@ -94,6 +94,7 @@ def session(
     # Defaults
     if config is None:
         config = ll.checkpoint.load_config(_default_checkpoint, **kwargs)
+    warmup = default_arg(warmup, True)
 
     # Validate
     if not config.checkpoint_name.endswith("-Instruct"):
@@ -147,6 +148,8 @@ def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None) -> 
         max_tokens=max_tokens,
     )
 
+    progress = tqdm(desc="Warmup", total=max_tokens)
+
     # Stream tokens from queue
     while True:
         next_token_id = q.get()
@@ -154,7 +157,7 @@ def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None) -> 
             q.task_done()
             break
 
-        stdout.write(".")
+        progress.update()
 
         q.task_done()
 
@@ -170,14 +173,21 @@ def complete(session: ChatSession, *, content: str, key: Array) -> Iterator[str]
     q = Queue[Array | None]()
 
     # Append to existing conversation
-    _messages[session.id].append(
+    messages = _messages[session.id] + [
         Message(
             role="user",
             content=content,
-        )
-    )
+        ),
+    ]
 
-    prompt = render_prompt(_messages[session.id])
+    # _messages[session.id].append(
+    #     Message(
+    #         role="user",
+    #         content=content,
+    #     )
+    # )
+
+    prompt = render_prompt(messages)
     token_ids, position_mask = session.tokenizer.encode(prompt)
 
     # Feed model in background
@@ -207,12 +217,12 @@ def complete(session: ChatSession, *, content: str, key: Array) -> Iterator[str]
         q.task_done()
 
     # Append response to existing conversation
-    _messages[session.id].append(
-        Message(
-            role="assistant",
-            content=response,
-        )
-    )
+    # _messages[session.id].append(
+    #     Message(
+    #         role="assistant",
+    #         content=response,
+    #     )
+    # )
 
     logger.info("Waiting for background job to finish")
     wait([job])

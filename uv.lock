@@ -1002,6 +1002,7 @@ dev = [
     { name = "scipy" },
     { name = "seaborn" },
     { name = "transformers" },
+    { name = "types-tqdm" },
 ]
 
 [package.metadata]
@@ -1033,6 +1034,7 @@ dev = [
     { name = "scipy", specifier = ">=1.14.1" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "transformers", specifier = ">=4.49.0" },
+    { name = "types-tqdm", specifier = ">=4.67.0.20250301" },
 ]
 
 [[package]]
@@ -2447,6 +2449,30 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a9/60/47d92293d9bc521cd2301e423a358abfac0ad409b3a1606d8fbae1321961/types_python_dateutil-2.9.0.20241206.tar.gz", hash = "sha256:18f493414c26ffba692a72369fea7a154c502646301ebfe3d56a04b3767284cb", size = 13802 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0f/b3/ca41df24db5eb99b00d97f89d7674a90cb6b3134c52fb8121b6d8d30f15c/types_python_dateutil-2.9.0.20241206-py3-none-any.whl", hash = "sha256:e248a4bc70a486d3e3ec84d0dc30eec3a5f979d6e7ee4123ae043eedbb987f53", size = 14384 },
+]
+
+[[package]]
+name = "types-requests"
+version = "2.32.0.20250301"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/87/88/365d6b46f1088ddeccbc89c26190c3180088ef6e7c8d162fc619496aab96/types_requests-2.32.0.20250301.tar.gz", hash = "sha256:3d909dc4eaab159c0d964ebe8bfa326a7afb4578d8706408d417e17d61b0c500", size = 22977 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b9/c2/e44564e8995dbc1738c2acacb8009d59c8cb19327da95a1b5c5d9cb68364/types_requests-2.32.0.20250301-py3-none-any.whl", hash = "sha256:0003e0124e2cbefefb88222ff822b48616af40c74df83350f599a650c8de483b", size = 20671 },
+]
+
+[[package]]
+name = "types-tqdm"
+version = "4.67.0.20250301"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f1/e5/f4b821e6685702587a48af181476955384fc69262fc04f2d74da5602b111/types_tqdm-4.67.0.20250301.tar.gz", hash = "sha256:5e89a38ad89b867823368eb97d9f90d2fc69806bb055dde62716a05da62b5e0d", size = 17071 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/22/47/1132d6c02e3bf1a66b7b1a57b8a62e0120f24b31fb770e0f9f3168ccdbfe/types_tqdm-4.67.0.20250301-py3-none-any.whl", hash = "sha256:8af97deb8e6874af833555dc1fe0fcd456b1a789470bf6cd8813d4e7ee4f6c5b", size = 24178 },
 ]
 
 [[package]]
