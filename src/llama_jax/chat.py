@@ -1,25 +1,33 @@
 from collections.abc import Iterator, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, wait
 import logging
-from typing import Annotated, Any, Callable, NamedTuple, cast
+from functools import partial
+from time import perf_counter_ns as seed
+from typing import Annotated, Any, AsyncIterator, Callable, NamedTuple, cast
 from uuid import uuid4
+from queue import Queue
+from sys import stdout
 
 from jax import Array, random
 from jax import numpy as jnp
 from pydantic import BeforeValidator, TypeAdapter
+from tqdm.auto import trange
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, TrainingLevel
 from llama_jax.model import Model
 from llama_jax.tools import default_arg
+from llama_jax.tokenizer import Tokenizer
+
 
 __all__ = [
-    "CompletionEvent",
     "Message",
     "MessageLike",
-    "Thread",
-    "ThreadLike",
-    "generator",
-    "load_threads",
+    "load_messages",
+    "render_prompt",
+    "ChatSession",
+    "session",
+    "generate",
 ]
 
 logger = logging.getLogger(__name__)
@@ -36,159 +44,19 @@ class Message(NamedTuple):
 MessageLike = Mapping[str, str] | Message
 
 
-class Thread(NamedTuple):
-    """Multiple messages strong together in a dialog."""
+def load_messages(input_messages: MessageLike | Sequence[MessageLike]) -> Sequence[Message]:
+    """Load messages."""
+    if not isinstance(input_messages, Sequence):
+        input_messages = [input_messages]
 
-    id: str
-
-    messages: Sequence[Message]
-
-
-def _validate_thread(data: Any) -> Any:
-    if not isinstance(data, dict):
-        return data
-
-    if "id" not in data:
-        data["id"] = uuid4().hex
-
-    return data
+    return TypeAdapter(Sequence[Message]).validate_python(input_messages)
 
 
-Thread = Annotated[Thread, BeforeValidator(_validate_thread)]  # type: ignore
-
-
-ThreadLike = Mapping[str, str] | Thread
-
-
-class CompletionEvent(NamedTuple):
-    """Chat completion event."""
-
-    thread: Thread
-    delta: Message | None
-
-
-ChatGenerator = Callable[[ThreadLike | Sequence[ThreadLike]], Iterator[CompletionEvent | Sequence[CompletionEvent]]]
-
-ROLE = "assistant"
-
-
-def generator(
-    config: ModelConfig,
-    *,
-    model: Model | None = None,
-    key: Array | None = None,
-    temperature: float | None = None,
-    top_k: int | None = None,
-    top_p: float | None = None,
-    max_tokens: int | None = None,
-    stream: bool | None = None,
-) -> ChatGenerator:
-    """Create a chat generator."""
-    # Defaults
-    max_tokens = default_arg(max_tokens, 32)
-    stream = default_arg(stream, False)
-
-    # Validate
-    if config.training is not TrainingLevel.INSTRUCT:
-        raise ValueError("Chat generator requires INSTRUCT model.")
-
-    # Initialize tokenizer
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-
-    # Initialize model if not provided
-    if model is None:
-        model = ll.model.create(config, ll.checkpoint.load_parameters(config))
-
-    # Define generator callable
-    def wrapper(
-        input_threads: ThreadLike | Sequence[ThreadLike],
-        **kwargs: Any,
-    ) -> Iterator[CompletionEvent | Sequence[CompletionEvent]]:
-        nonlocal key, max_tokens, stream
-
-        # Override ctor args
-        max_tokens = kwargs.get("max_tokens", max_tokens)
-        assert max_tokens is not None
-        stream = kwargs.get("stream", stream)
-        assert stream is not None
-
-        # Validate
-        batched = _batched(input_threads)
-        threads = load_threads(input_threads)
-        bs = len(threads)
-
-        # Render prompts and tokenize
-        prompts = tuple(render_prompt(thread) for thread in threads)
-        token_ids, position_mask = tokenizer.encode(prompts)
-
-        # Initialize key/value cache
-        kvc = ll.kvc.create(config)
-
-        # Initialize x with entire sequence on first pass
-        x = token_ids
-
-        # All sequences in batch start off active
-        active = jnp.ones(x.shape[0], dtype=bool)
-
-        content = ["" for _ in range(bs)]
-
-        # Sample up to max tokens
-        for _ in range(max_tokens):
-            # Transform x into logits
-            logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
-
-            # Sample next token
-            key, subkey = random.split(key) if key is not None else (None, None)
-            next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
-
-            # Track active sequences
-            is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
-            active = active & ~is_stop_token
-            if not jnp.any(active):
-                break
-
-            # Decode next token
-            tokens = tokenizer.decode(next_token_id, special=False)
-
-            # Collect tokens for active sequences
-            for i in range(bs):
-                if active[i]:
-                    content[i] += tokens[i]
-
-            if stream:
-                events = tuple(
-                    CompletionEvent(
-                        thread=_response_thread(threads[i], content[i]),
-                        delta=_delta_message(tokens[i]),
-                    )
-                    for i in range(bs)
-                    if active[i]
-                )
-
-                yield events if batched else events[0]
-
-            # Subsequent iterations process one token at a time.
-            x = next_token_id
-
-        # Final events
-        events = tuple(
-            CompletionEvent(
-                thread=_response_thread(threads[i], content[i]),
-                delta=None,
-            )
-            for i in range(bs)
-        )
-
-        yield events if batched else events[0]
-
-    return wrapper
-
-
-def render_prompt(thread: Thread) -> str:
+def render_prompt(messages: Sequence[Message]) -> str:
     """Render messages as Llama prompt."""
     prompt = ""
 
-    for message in thread.messages:
+    for message in messages:
         prompt += f"<|start_header_id|>{message.role}<|end_header_id|>\n\n"
         prompt += message.content
         prompt += "<|eot_id|>\n"
@@ -198,25 +66,209 @@ def render_prompt(thread: Thread) -> str:
     return prompt
 
 
-def _batched(input_threads: ThreadLike | Sequence[ThreadLike]) -> bool:
-    return isinstance(input_threads, Sequence)
+_messages: Mapping[str, Sequence[Message]] = {}
 
 
-def load_threads(input_threads: ThreadLike | Sequence[ThreadLike]) -> Sequence[Thread]:
-    """Load threads."""
-    if not _batched(input_threads):
-        input_threads = cast(Sequence[ThreadLike], [input_threads])
+class ChatSession(NamedTuple):
 
-    threads: Sequence[Thread] = TypeAdapter(Sequence[Thread]).validate_python(input_threads)
+    id: str
 
-    return threads
+    config: ModelConfig
+    
+    tokenizer: Tokenizer
+    
+    model: Model
 
-
-def _response_thread(thread: Thread, content: str) -> Thread:
-    messages = (*thread.messages, Message(role=ROLE, content=content))
-
-    return thread._replace(messages=messages)
+    executor: ThreadPoolExecutor
 
 
-def _delta_message(token: str) -> Message:
-    return Message(role=ROLE, content=token)
+_default_checkpoint = "Llama3.2-3B-Instruct"
+
+
+def session(
+    config: ModelConfig | None = None,
+    system_prompt: str | None = None,
+    warmup: bool | None = None,
+    warmup_tokens: int | None = None,
+    **kwargs: Any,
+) -> ChatSession:
+    """Create new chat session."""
+
+    # Defaults
+    if config is None:
+        config = ll.checkpoint.load_config(_default_checkpoint, **kwargs)
+
+    # Validate
+    if not config.checkpoint_name.endswith("-Instruct"):
+        raise ValueError(f"Invalid checkpoint {config.checkpoint_name}. Chat sessions require instruct checkpoint.")
+
+    id=uuid4().hex
+    tokenizer = ll.checkpoint.load_tokenizer(config)
+    params = ll.checkpoint.load_parameters(config)
+    model = ll.model.create(config, params)
+
+    # Initialize executor with max of 1 worker to ensure multiple requests are queued
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    # Initialize conversation
+    _messages[id] = [Message(role="system", content=system_prompt)] if system_prompt else []
+
+    session = ChatSession(id=id, config=config, tokenizer=tokenizer, model=model, executor=executor)
+    
+    # Warmup model
+    if warmup:
+        _warmup(session, random.key(seed()), max_tokens=warmup_tokens)
+
+    return session
+
+
+def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None):
+    """Warmup model cache."""
+
+    max_tokens = default_arg(max_tokens, session.config.max_tokens)
+
+    prompt = render_prompt([
+        Message(
+            role="user",
+            content="Generate 2 sentences of lorem ipsum",
+        )
+    ])
+
+    tokenizer = ll.checkpoint.load_tokenizer(session.config)
+    token_ids, position_mask = tokenizer.encode(prompt)
+
+    # q is unbounded to avoid blocking
+    q = Queue()
+
+    # Feed model in background
+    job = session.executor.submit(
+        _generate_tokens, 
+        session,
+        token_ids,
+        position_mask,
+        key,
+        q,
+        max_tokens=max_tokens,
+    )
+
+    # Stream tokens from queue
+    while True:
+        next_token_id = q.get()
+        if next_token_id is None:
+            q.task_done()
+            break
+
+        stdout.write(".")
+
+        q.task_done()
+    
+    logger.info("Waiting for background job to finish")
+    wait([job])
+
+    logger.info(f"Warmup complete")
+
+
+def complete(session: ChatSession, *, content: str, key: Array) -> Iterator[str]:
+    """Submit chat completion."""
+
+    # q is unbounded to avoid blocking
+    q = Queue()
+
+    # Append to existing conversation
+    _messages[session.id].append(Message(
+        role="user",
+        content=content,
+    ))
+
+    prompt = render_prompt(_messages[session.id])
+    token_ids, position_mask = session.tokenizer.encode(prompt)
+
+    # Feed model in background
+    job = session.executor.submit(
+        _generate_tokens, 
+        session,
+        token_ids,
+        position_mask,
+        key,
+        q,
+    )
+
+    # Stream tokens from queue
+    response = ""
+    while True:
+        next_token_id = q.get()
+        if next_token_id is None:
+            q.task_done()
+            break
+
+        token = session.tokenizer.decode(next_token_id)[0]
+        
+        yield token
+
+        response += token
+
+        q.task_done()
+
+    # Append response to existing conversation
+    _messages[session.id].append(Message(
+        role="assistant",
+        content=response,
+    ))
+    
+    logger.info("Waiting for background job to finish")
+    wait([job])
+
+    logger.info(f"Foreground job complete")
+
+
+def _generate_tokens(
+    session: ChatSession, 
+    token_ids: Array, 
+    position_mask: Array,
+    key: Array,
+    q: Queue,
+    max_tokens: int | None = None,
+) -> None:
+    """Feed model in background."""
+
+    # Defaults
+    max_tokens = default_arg(max_tokens, session.config.max_tokens)
+
+    config, tokenizer, model = session.config, session.tokenizer, session.model
+    bs, n = token_ids.shape
+
+    # Generate up to config.max_tokens
+    max_tokens = min(max_tokens, config.max_tokens - n)
+    logger.info(f"Background: started - generating up to {max_tokens} tokens")
+
+    x = token_ids
+    kvc = ll.kvc.create(config)
+    key, *subkeys = random.split(key, max_tokens + 1)
+
+    # All sequences in batch start off active
+    active = jnp.ones(bs, dtype=bool)
+
+    for i in range(max_tokens):
+
+        # Transform x into next token id
+        logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
+        next_token_id = ll.model.next_token(logits, key=subkeys[i])
+
+        # Track active sequences
+        is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
+        active = active & ~is_stop_token
+        if not jnp.any(active):
+            break
+
+        # Publish next token id
+        q.put(next_token_id)
+
+        x = next_token_id
+
+    # Send all done
+    q.put(None)
+
+    # Wait for all jobs to be processed
+    q.join()
+
+    logger.info(f"Background: completed")

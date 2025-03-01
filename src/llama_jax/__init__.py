@@ -1,6 +1,5 @@
 from . import (
     attention,
-    benchmarks,
     chat,
     checkpoint,
     embeddings,
@@ -14,11 +13,12 @@ from . import (
     rms_norm,
     rope,
     text,
+    jupyter,
+    tools,
 )
 
 __all__ = [
     "attention",
-    "benchmarks",
     "chat",
     "checkpoint",
     "embeddings",
@@ -32,4 +32,6 @@ __all__ = [
     "rope",
     "text",
     "render",
+    "jupyter",
+    "tools",
 ]
