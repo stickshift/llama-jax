@@ -29,7 +29,6 @@ def test_forward(
     params: ModelParameters,
     rope: Rope,
     mask: Array,
-    bs: int,
     token_embeddings: Array,
 ):
     #
@@ -40,7 +39,7 @@ def test_forward(
     layer = ll.layer.create(config, params, "layers.0")
 
     # I created a key/value cache
-    layer_kvc = ll.kvc.create(config, bs=bs)[0]
+    layer_kvc = ll.kvc.create(config)[0]
 
     # Sample embeddings
     x = token_embeddings

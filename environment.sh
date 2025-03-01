@@ -9,7 +9,7 @@ export VERSION=${VERSION:-0.1.0}
 export PY_VERSION=$(echo $VERSION | sed 's/-/\.dev0+/')
 
 # Jupyter
-export JUPYTER_CONFIG_DIR=${PROJECT_ROOT}/.build/jupyter
+export JUPYTER_CONFIG_DIR=${PROJECT_ROOT}/build/jupyter
 export JUPYTER_DATA_DIR=${JUPYTER_CONFIG_DIR}
 export JUPYTER_PLATFORM_DIRS=1
 

@@ -1,8 +1,10 @@
 from tqdm.auto import tqdm
+import pytest
 
 import llama_jax as ll
 
 
+@pytest.mark.wip
 def test_single_thread():
     #
     # Givens
@@ -48,6 +50,7 @@ def test_single_thread():
     assert message.content.strip() == "Boston"
 
 
+@pytest.mark.wip
 def test_multi_thread():
     #
     # Givens
@@ -111,6 +114,7 @@ def test_multi_thread():
     assert events[1].thread.messages[-1].content.strip() == "Boston"
 
 
+@pytest.mark.wip
 def test_single_thread_streaming():
     #
     # Givens
@@ -166,6 +170,7 @@ def test_single_thread_streaming():
     assert event.delta is None
 
 
+@pytest.mark.wip
 def test_multi_thread_streaming():
     #
     # Givens
