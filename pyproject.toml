@@ -70,4 +70,5 @@ dev-dependencies = [
     "transformers>=4.49.0",
     "accelerate>=1.4.0",
     "scipy>=1.14.1",
+    "pypdf[image]>=5.3.0",
 ]

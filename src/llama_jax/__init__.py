@@ -10,6 +10,7 @@ from . import (
     layer,
     model,
     position_mask,
+    render,
     rms_norm,
     rope,
     text,
@@ -30,4 +31,5 @@ __all__ = [
     "rms_norm",
     "rope",
     "text",
+    "render",
 ]
