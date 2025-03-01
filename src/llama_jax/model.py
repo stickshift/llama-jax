@@ -9,7 +9,6 @@ import jax
 from jax import Array, random
 from jax import numpy as jnp
 from jax.nn import softmax
-from tqdm.auto import trange
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig, ModelParameters

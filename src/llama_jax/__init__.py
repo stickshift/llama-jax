@@ -5,6 +5,7 @@ from . import (
     embeddings,
     ffn,
     head,
+    jupyter,
     kvc,
     layer,
     model,
@@ -13,7 +14,6 @@ from . import (
     rms_norm,
     rope,
     text,
-    jupyter,
     tools,
 )
 
@@ -24,14 +24,14 @@ __all__ = [
     "embeddings",
     "ffn",
     "head",
+    "jupyter",
     "kvc",
     "layer",
     "model",
     "position_mask",
+    "render",
     "rms_norm",
     "rope",
     "text",
-    "render",
-    "jupyter",
     "tools",
 ]

@@ -1,5 +1,5 @@
-from tqdm.auto import tqdm
 import pytest
+from tqdm.auto import tqdm
 
 import llama_jax as ll
 

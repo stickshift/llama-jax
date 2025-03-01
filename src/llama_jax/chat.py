@@ -1,33 +1,30 @@
 from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, wait
 import logging
-from functools import partial
-from time import perf_counter_ns as seed
-from typing import Annotated, Any, AsyncIterator, Callable, NamedTuple, cast
-from uuid import uuid4
 from queue import Queue
 from sys import stdout
+from time import perf_counter_ns as seed
+from typing import Any, NamedTuple
+from uuid import uuid4
 
 from jax import Array, random
 from jax import numpy as jnp
-from pydantic import BeforeValidator, TypeAdapter
-from tqdm.auto import trange
+from pydantic import TypeAdapter
 
 import llama_jax as ll
-from llama_jax.checkpoint import ModelConfig, TrainingLevel
+from llama_jax.checkpoint import ModelConfig
 from llama_jax.model import Model
-from llama_jax.tools import default_arg
 from llama_jax.tokenizer import Tokenizer
-
+from llama_jax.tools import default_arg
 
 __all__ = [
+    "ChatSession",
     "Message",
     "MessageLike",
+    "complete",
     "load_messages",
     "render_prompt",
-    "ChatSession",
     "session",
-    "generate",
 ]
 
 logger = logging.getLogger(__name__)
@@ -66,17 +63,18 @@ def render_prompt(messages: Sequence[Message]) -> str:
     return prompt
 
 
-_messages: Mapping[str, Sequence[Message]] = {}
+_messages: Mapping[str, list[Message]] = {}
 
 
 class ChatSession(NamedTuple):
+    """Chat session state."""
 
     id: str
 
     config: ModelConfig
-    
+
     tokenizer: Tokenizer
-    
+
     model: Model
 
     executor: ThreadPoolExecutor
@@ -93,7 +91,6 @@ def session(
     **kwargs: Any,
 ) -> ChatSession:
     """Create new chat session."""
-
     # Defaults
     if config is None:
         config = ll.checkpoint.load_config(_default_checkpoint, **kwargs)
@@ -102,7 +99,7 @@ def session(
     if not config.checkpoint_name.endswith("-Instruct"):
         raise ValueError(f"Invalid checkpoint {config.checkpoint_name}. Chat sessions require instruct checkpoint.")
 
-    id=uuid4().hex
+    id = uuid4().hex
     tokenizer = ll.checkpoint.load_tokenizer(config)
     params = ll.checkpoint.load_parameters(config)
     model = ll.model.create(config, params)
@@ -111,10 +108,10 @@ def session(
     executor = ThreadPoolExecutor(max_workers=1)
 
     # Initialize conversation
-    _messages[id] = [Message(role="system", content=system_prompt)] if system_prompt else []
+    _messages[id] = [Message(role="system", content=system_prompt)] if system_prompt else []  # type: ignore[index]
 
     session = ChatSession(id=id, config=config, tokenizer=tokenizer, model=model, executor=executor)
-    
+
     # Warmup model
     if warmup:
         _warmup(session, random.key(seed()), max_tokens=warmup_tokens)
@@ -122,9 +119,8 @@ def session(
     return session
 
 
-def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None):
+def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None) -> None:
     """Warmup model cache."""
-
     max_tokens = default_arg(max_tokens, session.config.max_tokens)
 
     prompt = render_prompt([
@@ -138,11 +134,11 @@ def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None):
     token_ids, position_mask = tokenizer.encode(prompt)
 
     # q is unbounded to avoid blocking
-    q = Queue()
+    q = Queue[Array | None]()
 
     # Feed model in background
     job = session.executor.submit(
-        _generate_tokens, 
+        _generate_tokens,
         session,
         token_ids,
         position_mask,
@@ -161,31 +157,32 @@ def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None):
         stdout.write(".")
 
         q.task_done()
-    
+
     logger.info("Waiting for background job to finish")
     wait([job])
 
-    logger.info(f"Warmup complete")
+    logger.info("Warmup complete")
 
 
 def complete(session: ChatSession, *, content: str, key: Array) -> Iterator[str]:
     """Submit chat completion."""
-
     # q is unbounded to avoid blocking
-    q = Queue()
+    q = Queue[Array | None]()
 
     # Append to existing conversation
-    _messages[session.id].append(Message(
-        role="user",
-        content=content,
-    ))
+    _messages[session.id].append(
+        Message(
+            role="user",
+            content=content,
+        )
+    )
 
     prompt = render_prompt(_messages[session.id])
     token_ids, position_mask = session.tokenizer.encode(prompt)
 
     # Feed model in background
     job = session.executor.submit(
-        _generate_tokens, 
+        _generate_tokens,
         session,
         token_ids,
         position_mask,
@@ -202,7 +199,7 @@ def complete(session: ChatSession, *, content: str, key: Array) -> Iterator[str]
             break
 
         token = session.tokenizer.decode(next_token_id)[0]
-        
+
         yield token
 
         response += token
@@ -210,27 +207,28 @@ def complete(session: ChatSession, *, content: str, key: Array) -> Iterator[str]
         q.task_done()
 
     # Append response to existing conversation
-    _messages[session.id].append(Message(
-        role="assistant",
-        content=response,
-    ))
-    
+    _messages[session.id].append(
+        Message(
+            role="assistant",
+            content=response,
+        )
+    )
+
     logger.info("Waiting for background job to finish")
     wait([job])
 
-    logger.info(f"Foreground job complete")
+    logger.info("Foreground job complete")
 
 
 def _generate_tokens(
-    session: ChatSession, 
-    token_ids: Array, 
+    session: ChatSession,
+    token_ids: Array,
     position_mask: Array,
     key: Array,
-    q: Queue,
+    q: Queue[Array | None],
     max_tokens: int | None = None,
 ) -> None:
     """Feed model in background."""
-
     # Defaults
     max_tokens = default_arg(max_tokens, session.config.max_tokens)
 
@@ -249,7 +247,6 @@ def _generate_tokens(
     active = jnp.ones(bs, dtype=bool)
 
     for i in range(max_tokens):
-
         # Transform x into next token id
         logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
         next_token_id = ll.model.next_token(logits, key=subkeys[i])
@@ -271,4 +268,4 @@ def _generate_tokens(
     # Wait for all jobs to be processed
     q.join()
 
-    logger.info(f"Background: completed")
+    logger.info("Background: completed")

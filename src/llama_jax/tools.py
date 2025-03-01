@@ -9,12 +9,12 @@ from typing import Callable, cast, no_type_check
 from rich.console import Console
 
 __all__ = [
+    "console",
     "default_arg",
     "executor",
     "recursive_tuple",
     "shell",
     "trace",
-    "console",
 ]
 
 
