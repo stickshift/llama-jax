@@ -3,15 +3,14 @@ from functools import wraps
 import logging
 from logging import Logger
 import subprocess
+from textwrap import dedent
 from time import perf_counter_ns as timer
 from typing import Callable, cast, no_type_check
 
-from rich.console import Console
-
 __all__ = [
-    "console",
     "default_arg",
     "executor",
+    "prompt",
     "recursive_tuple",
     "shell",
     "trace",
@@ -31,6 +30,11 @@ def default_arg[T](
         return default_factory()
 
     return cast(T, default)
+
+
+def prompt(p: str) -> str:
+    """Cleanup and format multiline string prompts."""
+    return dedent(p).lstrip()
 
 
 def shell(command: str) -> str:
@@ -56,17 +60,6 @@ def executor() -> ThreadPoolExecutor:
     if _executor is None:
         _executor = ThreadPoolExecutor()
     return _executor
-
-
-_console = None
-
-
-def console() -> Console:
-    """Global console."""
-    global _console  # noqa: PLW0603
-    if _console is None:
-        _console = Console()
-    return _console
 
 
 @no_type_check

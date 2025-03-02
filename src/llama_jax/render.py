@@ -2,10 +2,12 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from time import perf_counter_ns as timer
 
-from rich.console import RenderableType
+from rich.console import Console, RenderableType
 from rich.live import Live
 from rich.markdown import Markdown
+from rich.style import Style
 from rich.table import Table
+from rich.theme import Theme
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
@@ -14,6 +16,21 @@ __all__ = [
     "TokenView",
     "token_view",
 ]
+
+
+_default_theme_overrides = {
+    "markdown.code": Style(bold=True),
+}
+
+_console = None
+
+
+def console() -> Console:
+    """Global console."""
+    global _console  # noqa: PLW0603
+    if _console is None:
+        _console = Console(theme=Theme(_default_theme_overrides))
+    return _console
 
 
 class TokenView:
@@ -69,7 +86,7 @@ def token_view(config: ModelConfig, prompt: str | None = None) -> Iterator[Token
         token_ids, _ = tokenizer.encode(prompt)
         input_count = token_ids.shape[-1]
 
-    with Live(console=ll.tools.console()) as live:
+    with Live(console=console()) as live:
         yield TokenView(live, prompt, input_count)
 
 
@@ -95,7 +112,7 @@ def _render(
     header = f"> {prompt}\n\n" if prompt else ""
 
     # Body
-    table.add_row(Markdown(header + content))
+    table.add_row(Markdown(header + content, code_theme="default"))
     table.add_row()
 
     # Footer
