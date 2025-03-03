@@ -21,7 +21,7 @@ def test_factory(config: ModelConfig, params: ModelParameters):
     #
 
     # I create Model
-    model = ll.model.create(config, params)
+    model = ll.model.create(config, params=params)
 
     #
     # Thens
@@ -56,7 +56,7 @@ def test_forward_full_sequence(
     logits0 = logits[:, -1]
 
     # I initialize model
-    model = ll.model.create(config, params)
+    model = ll.model.create(config, params=params)
 
     #
     # Whens
@@ -88,7 +88,7 @@ def test_forward_incremental(
     #
 
     # I created a Model
-    model = ll.model.create(config, params)
+    model = ll.model.create(config, params=params)
 
     # I initialized key/value cache
     kvc = ll.kvc.create(config)
@@ -245,7 +245,7 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
     token_ids, position_mask = tokenizer.encode(prompts)
 
     # I created a Model
-    model = ll.model.create(config, params)
+    model = ll.model.create(config, params=params)
 
     #
     # Whens
@@ -295,7 +295,7 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
     kvc = ll.kvc.create(config)
 
     # I created a Model
-    model = ll.model.create(config, params)
+    model = ll.model.create(config, params=params)
 
     #
     # Whens

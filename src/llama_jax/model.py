@@ -42,8 +42,20 @@ class Model(NamedTuple):
     rope: Rope
 
 
-def create(config: ModelConfig, params: ModelParameters) -> Model:
-    """Load Llama3 Model."""
+def create(config: ModelConfig, params: ModelParameters | None = None) -> Model:
+    """Create a Llama 3 model.
+
+    Args:
+        config (ModelConfig): Checkpoint configuration.
+        params (ModelParameters): (Optional) Override model parameters.
+
+    Returns:
+        Model state.
+    """
+
+    # Defaults
+    params = default_arg(params, default_factory=partial(ll.checkpoint.load_parameters, config))
+
     # Embeddings
     embeddings = ll.embeddings.create(config, params)
 

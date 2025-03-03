@@ -1,3 +1,7 @@
+import logging
+
+import jax
+
 from . import (
     attention,
     chat,
@@ -35,3 +39,8 @@ __all__ = [
     "text",
     "tools",
 ]
+
+
+logger = logging.getLogger(__name__)
+
+logger.info(f"Available jax devices: {jax.devices()}")

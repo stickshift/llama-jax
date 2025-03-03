@@ -50,7 +50,7 @@ def test_rms_norm_shape(config: ModelConfig, bs: int, n: int):
     #
 
     # I calculate normalizing factor
-    factor = ll.rms_norm._norm(config, norm, x)
+    factor = ll.rms_norm._norm(x, config.rms_norm_eps)
 
     #
     # Thens

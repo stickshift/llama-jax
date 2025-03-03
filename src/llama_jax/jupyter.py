@@ -2,6 +2,7 @@ from collections.abc import Callable
 from time import perf_counter_ns as seed
 from typing import Any, NamedTuple
 
+from IPython.core.getipython import get_ipython
 from IPython.core.magic import register_line_cell_magic
 from jax import random
 
@@ -58,7 +59,10 @@ def session(
     # Register chat magic
     @register_line_cell_magic  # type: ignore[misc]
     def chat(line: str, cell: str | None = None) -> None:
-        content = default_arg(cell, line)
+        content = line
+        if cell is not None:
+            content = get_ipython().var_expand(cell)
+
         _submit_chat(session, content)
 
     return session

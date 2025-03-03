@@ -34,12 +34,12 @@ def forward(config: ModelConfig, state: RMSNorm, x: Array) -> Array:
     if x.ndim != 3:
         raise ValueError(f"Unexpected shape {x.shape}. Expected (bs, n, d).")
 
-    return state.weight * _norm(config, state, x)
+    return state.weight * _norm(x, config.rms_norm_eps)
 
 
-def _norm(config: ModelConfig, state: RMSNorm, x: Array) -> Array:
+def _norm(x: Array, rms_norm_eps: float) -> Array:
     """Calculate normalizing factor.
 
     See https://doi.org/10.48550/arXiv.1910.07467
     """
-    return x / jnp.sqrt(jnp.mean(x**2, axis=-1, keepdims=True) + config.rms_norm_eps)
+    return x / jnp.sqrt(jnp.mean(x**2, axis=-1, keepdims=True) + rms_norm_eps)

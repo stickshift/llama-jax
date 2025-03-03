@@ -109,6 +109,9 @@ def _render(
     )
 
     # Header
+    if prompt and len(prompt) > 80:
+        prompt = prompt[:80] + "..."
+        
     header = f"> {prompt}\n\n" if prompt else ""
 
     # Body

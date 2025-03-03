@@ -72,4 +72,5 @@ dev-dependencies = [
     "scipy>=1.14.1",
     "pypdf[image]>=5.3.0",
     "types-tqdm>=4.67.0.20250301",
+    "ollama>=0.4.7",
 ]

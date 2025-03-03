@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 import logging
 from logging import Logger
+from pathlib import Path
+import shlex
 import subprocess
 from textwrap import dedent
 from time import perf_counter_ns as timer
@@ -14,6 +16,8 @@ __all__ = [
     "recursive_tuple",
     "shell",
     "trace",
+    "ss",
+    "sq",
 ]
 
 
@@ -49,6 +53,16 @@ def shell(command: str) -> str:
     )
 
     return result.stdout.strip()
+
+
+def ss(v: str) -> list[str]:
+    """Splits shell into tokens."""
+    return shlex.split(v)
+
+
+def sq(v: str | Path) -> str:
+    """Wraps v in shell quotes."""
+    return shlex.quote(str(v))
 
 
 _executor = None

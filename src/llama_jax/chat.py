@@ -5,6 +5,7 @@ import logging
 from queue import Queue
 from random import sample
 from time import perf_counter_ns as seed
+from threading import Event
 from typing import Any, NamedTuple
 from uuid import uuid4
 
@@ -96,9 +97,12 @@ def session(
 ) -> ChatSession:
     """Create new chat session."""
     # Defaults
-    if config is None:
-        config = ll.checkpoint.load_config(_default_checkpoint, **kwargs)
     warmup = default_arg(warmup, True)
+
+    # Load config if needed
+    if config is None:
+        max_tokens = kwargs.pop("max_tokens", 4096)
+        config = ll.checkpoint.load_config(_default_checkpoint, max_tokens=max_tokens, **kwargs)
 
     # Validate
     if not config.checkpoint_name.endswith("-Instruct"):
@@ -126,6 +130,9 @@ def session(
 
 def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int | None = None) -> Iterator[str]:
     """Submit chat completion."""
+
+    logger.info(f"Completion: started")
+
     # q is unbounded to avoid blocking
     q = Queue[Array | None]()
 
@@ -149,57 +156,71 @@ def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int 
 
     prompt = render_prompt(messages)
     token_ids, position_mask = session.tokenizer.encode(prompt)
+    
+    logger.info(f"Completion: split prompt into {token_ids.shape[-1]} token ids")
 
-    # Feed model in background
+    # Schedule generator in background thread
+    cancel_event = Event()
     job = session.executor.submit(
-        _generate_tokens,
+        _generator,
         session,
         token_ids,
         position_mask,
         key,
         q,
+        cancel_event,
         max_tokens,
     )
 
-    # Stream tokens from queue
-    response = ""
-    while True:
-        next_token_id = q.get()
-        if next_token_id is None:
+    logger.info(f"Completion: scheduled generator")
+
+    try:
+        # Stream tokens from queue
+        response = ""
+        while True:
+            next_token_id = q.get()
+            if next_token_id is None:
+                q.task_done()
+                break
+
+            token = session.tokenizer.decode(next_token_id)[0]
+
+            yield token
+
+            response += token
+
             q.task_done()
-            break
 
-        token = session.tokenizer.decode(next_token_id)[0]
+        #
+        # TODO: Revisit this with more time to optimize it.
+        #
+        # Append response to existing conversation
+        # _messages[session.id].append(
+        #     Message(
+        #         role="assistant",
+        #         content=response,
+        #     )
+        # )
 
-        yield token
+    except KeyboardInterrupt:
+        # Cancel job
+        cancel_event.set()
+        raise
 
-        response += token
-
-        q.task_done()
-
-    #
-    # TODO: Revisit this with more time to optimize it.
-    #
-    # Append response to existing conversation
-    # _messages[session.id].append(
-    #     Message(
-    #         role="assistant",
-    #         content=response,
-    #     )
-    # )
-
-    logger.info("Waiting for background job to finish")
+    logger.info("Completion: waiting for generator to finish")
+    
     wait([job])
 
-    logger.info("Foreground job complete")
+    logger.info("Completion: completed")
 
 
-def _generate_tokens(
+def _generator(
     session: ChatSession,
     token_ids: Array,
     position_mask: Array,
     key: Array,
     q: Queue[Array | None],
+    cancel_event: Event,
     max_tokens: int | None = None,
 ) -> None:
     """Background job that feeds tokens into model."""
@@ -211,7 +232,7 @@ def _generate_tokens(
 
     # Generate up to config.max_tokens
     max_tokens = min(max_tokens, config.max_tokens - n)
-    logger.info(f"Background: started - generating up to {max_tokens} tokens")
+    logger.info(f"Generator: started - generating up to {max_tokens} tokens")
 
     x = token_ids
     kvc = ll.kvc.create(config)
@@ -220,31 +241,45 @@ def _generate_tokens(
     # All sequences in batch start off active
     active = jnp.ones(bs, dtype=bool)
 
-    for i in range(max_tokens):
-        # Transform x into next token logits
-        logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
+    try:
+        
+        # Generate up to max tokens
+        for i in range(max_tokens):
+            
+            # Check for cancel
+            if cancel_event.is_set():
+                logger.info("Generator: cancelled")
+                return
 
-        # Sample token from logits
-        next_token_id = ll.model.next_token(logits, key=subkeys[i])
+            # Transform token ids
+            logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
 
-        # Track active sequences
-        is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
-        active = active & ~is_stop_token
-        if not jnp.any(active):
-            break
+            # Sample tokens
+            next_token_id = ll.model.next_token(logits, key=subkeys[i])
 
-        # Publish next token id
-        q.put(next_token_id)
+            # Track active sequences
+            is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
+            active = active & ~is_stop_token
+            if not jnp.any(active):
+                break
 
-        x = next_token_id
+            # Publish next token id
+            q.put(next_token_id)
 
-    # Send all done
-    q.put(None)
+            # Process generated token on next pass
+            x = next_token_id
 
-    # Wait for all jobs to be processed
-    q.join()
+        # Send all done
+        q.put(None)
 
-    logger.info("Background: completed")
+        # Wait for all jobs to be processed
+        q.join()
+
+        logger.info("Generator: completed")
+    
+    except Exception as e:
+        logger.exception(f"Generator: failed - {e}")
+        raise e
 
 
 _warmup_prompt_pool = (
