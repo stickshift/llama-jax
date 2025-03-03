@@ -42,23 +42,30 @@ def create(config: ModelConfig, params: ModelParameters) -> Head:
 
 def forward(config: ModelConfig, state: Head, x: Array, position_mask: Array) -> Array:
     """Transform embeddings into token logits."""
+    bs, n, d_model = x.shape[0], x.shape[1], config.d_model
+
+    # Select first n values of position_mask
+    mask = position_mask[:, :n]
+
     # Normalize inputs
     x = ll.rms_norm.forward(config, state.norm, x)
 
     # Use last "real" embedding to represent the entire sequence.
 
     # Start with fixed lengths for all sequences
-    fixed_lengths = jnp.full(x.shape[0], fill_value=x.shape[1])
+    fixed_lengths = jnp.full(bs, fill_value=n)
 
     # Calculate custom lengths per sequence w/o padding
-    padded_lengths = jnp.sum(position_mask, axis=-1)
+    padded_lengths = jnp.sum(mask, axis=-1)
 
     # Use padded lengths if the last position in any sequence is padded
-    condition = jnp.any(jnp.take(position_mask, -1, axis=-1) == 0)
+    condition = jnp.any(jnp.take(mask, -1, axis=-1) == 0)
     lengths = jnp.where(condition, padded_lengths, fixed_lengths)
 
     # Select the lengths-1 embedding for each batch
-    x = jnp.array([v[lengths[i] - 1] for i, v in enumerate(x)])
+    indices = jnp.reshape(lengths - 1, (bs, 1, 1))
+    x = jnp.take_along_axis(x, indices, axis=-2)
+    x = jnp.reshape(x, (bs, d_model))
 
     # Project outputs to token space
     x = x @ state.output

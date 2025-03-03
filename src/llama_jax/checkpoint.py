@@ -51,6 +51,8 @@ class TrainingLevel(str, Enum):
 class ModelConfig(NamedTuple):
     """Llama3 model config."""
 
+    checkpoint_name: str
+
     checkpoint_path: Path
 
     max_tokens: int
@@ -104,6 +106,7 @@ def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
     d_ffn = multiple_of * ((d_ffn + multiple_of - 1) // multiple_of)
 
     data = {
+        "checkpoint_name": checkpoint_name,
         "checkpoint_path": checkpoint_path,
         "max_tokens": max_tokens,
         "vocab_size": hparams["vocab_size"],
@@ -155,4 +158,7 @@ def load_parameters(config: ModelConfig) -> ModelParameters:
 def load_tokenizer(config: ModelConfig) -> Tokenizer:
     """Load tokenizer from checkpoint."""
     # Load tiktoken model
-    return Tokenizer(config.checkpoint_path / "tokenizer.model")
+    return Tokenizer(
+        model_path=config.checkpoint_path / "tokenizer.model",
+        max_tokens=config.max_tokens,
+    )

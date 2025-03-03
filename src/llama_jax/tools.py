@@ -2,15 +2,21 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 import logging
 from logging import Logger
+from pathlib import Path
+import shlex
 import subprocess
+from textwrap import dedent
 from time import perf_counter_ns as timer
 from typing import Callable, cast, no_type_check
 
 __all__ = [
     "default_arg",
     "executor",
+    "prompt",
     "recursive_tuple",
     "shell",
+    "sq",
+    "ss",
     "trace",
 ]
 
@@ -30,6 +36,11 @@ def default_arg[T](
     return cast(T, default)
 
 
+def prompt(p: str) -> str:
+    """Cleanup and format multiline string prompts."""
+    return dedent(p).lstrip()
+
+
 def shell(command: str) -> str:
     """Run shell command."""
     result = subprocess.run(
@@ -42,6 +53,16 @@ def shell(command: str) -> str:
     )
 
     return result.stdout.strip()
+
+
+def ss(v: str) -> list[str]:
+    """Splits shell into tokens."""
+    return shlex.split(v)
+
+
+def sq(v: str | Path) -> str:
+    """Wraps v in shell quotes."""
+    return shlex.quote(str(v))
 
 
 _executor = None

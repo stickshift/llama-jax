@@ -88,7 +88,7 @@ PHONIES :=
 # Targets
 ################################################################################
 
-all: venv
+all: venv $(OUTPUT_DIRS)
 	@echo
 	@echo -e "$(COLOR_H1)# $(PROJECT_NAME)$(COLOR_RESET)"
 	@echo

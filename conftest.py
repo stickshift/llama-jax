@@ -15,7 +15,6 @@ from tests.fixtures.llama import (
     token_ids,
     tokenizer,
 )
-from tests.fixtures.mmlu import mmlu_dataset_path
 from tests.fixtures.reference_fixtures import reference_model
 from tests.fixtures.torch_fixtures import torch_device, torch_disable_gradients
 from tests.fixtures.workspace import (
@@ -39,7 +38,6 @@ __all__ = [
     "log_levels",
     "logits",
     "mask",
-    "mmlu_dataset_path",
     "n",
     "numpy_print_options",
     "params",

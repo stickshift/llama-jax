@@ -86,7 +86,6 @@ def test_forward(
     params: ModelParameters,
     rope: Rope,
     mask: Array,
-    bs: int,
     token_embeddings: Array,
     attention_output: Array,
 ):
@@ -98,7 +97,7 @@ def test_forward(
     attention = ll.attention.create(config, params, "layers.0.attention")
 
     # I created a key/value cache
-    layer_kvc = ll.kv_cache.create(config, bs=bs)[0]
+    layer_kvc = ll.kvc.create(config)[0]
 
     # Sample embeddings
     x = token_embeddings

@@ -39,9 +39,6 @@ def test_rms_norm_shape(config: ModelConfig, bs: int, n: int):
     # Givens
     #
 
-    # I created RMSNorm
-    norm = RMSNorm(weight=jnp.ones(config.d_model))
-
     # x is array of ones
     x = jnp.reshape(jnp.ones(bs * n * config.d_model), (bs, n, config.d_model))
 
@@ -50,7 +47,7 @@ def test_rms_norm_shape(config: ModelConfig, bs: int, n: int):
     #
 
     # I calculate normalizing factor
-    factor = ll.rms_norm._norm(config, norm, x)
+    factor = ll.rms_norm._norm(x, config.rms_norm_eps)
 
     #
     # Thens

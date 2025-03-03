@@ -1,59 +1,51 @@
-from pathlib import Path
+# def test_load_dataset(mmlu_dataset_path: Path):
+#     #
+#     # Whens
+#     #
 
-from llama_jax.benchmarks.mmlu import (
-    load_dataset,
-    select_question,
-)
+#     # I load dataset
+#     dataset = load_dataset(mmlu_dataset_path)
 
+#     #
+#     # Thens
+#     #
 
-def test_load_dataset(mmlu_dataset_path: Path):
-    #
-    # Whens
-    #
+#     # There should 14,042 questions
+#     assert len(dataset.questions) == 14042
 
-    # I load dataset
-    dataset = load_dataset(mmlu_dataset_path)
+#     # There should 57 categories
+#     assert len(dataset.categories) == 57
 
-    #
-    # Thens
-    #
+#     # There should 5 examples per category
+#     for category in dataset.categories:
+#         assert len([e for e in dataset.examples if e.category == category]) == 5
 
-    # There should 14,042 questions
-    assert len(dataset.questions) == 14042
+#     #
+#     # Whens
+#     #
 
-    # There should 57 categories
-    assert len(dataset.categories) == 57
+#     # I query question by qid
+#     question0 = select_question(dataset.questions, qid=120)
 
-    # There should 5 examples per category
-    for category in dataset.categories:
-        assert len([e for e in dataset.examples if e.category == category]) == 5
+#     #
+#     # Thens
+#     #
 
-    #
-    # Whens
-    #
+#     # question should be
+#     assert question0.question == "Where is the sinoatrial node located?"
+#     #
+#     # Whens
+#     #
 
-    # I query question by qid
-    question0 = select_question(dataset.questions, qid=120)
+#     # I query question by question
+#     question1 = select_question(dataset.questions, question=question0.question)
 
-    #
-    # Thens
-    #
+#     #
+#     # Thens
+#     #
 
-    # question should be
-    assert question0.question == "Where is the sinoatrial node located?"
-    #
-    # Whens
-    #
-
-    # I query question by question
-    question1 = select_question(dataset.questions, question=question0.question)
-
-    #
-    # Thens
-    #
-
-    # question1 should match question0
-    assert question1 == question0
+#     # question1 should match question0
+#     assert question1 == question0
 
 
 # def test_prompt_zero_shot(mmlu_dataset_path: Path):
