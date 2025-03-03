@@ -1,6 +1,5 @@
-from collections.abc import Callable
 from time import perf_counter_ns as seed
-from typing import Any, NamedTuple
+from typing import Any
 
 from IPython.core.getipython import get_ipython
 from IPython.core.magic import register_line_cell_magic
@@ -12,17 +11,8 @@ from llama_jax.checkpoint import ModelConfig
 from llama_jax.tools import default_arg
 
 __all__ = [
-    "JupyterSession",
     "session",
 ]
-
-
-# class JupyterSession(NamedTuple):
-#     """Configure notebook-wide chat session and magics."""
-
-#     chat: ChatSession
-
-#     cell_magic: Callable[[str, str | None], None]
 
 
 _system_prompt = ll.tools.prompt(
@@ -61,7 +51,7 @@ def session(
     def chat(line: str, cell: str | None = None) -> None:
         content = line
         if cell is not None:
-            content = get_ipython().var_expand(cell)
+            content = get_ipython().var_expand(cell)  # type: ignore[no-untyped-call]
 
         _submit_chat(session, content)
 

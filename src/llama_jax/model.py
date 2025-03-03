@@ -52,7 +52,6 @@ def create(config: ModelConfig, params: ModelParameters | None = None) -> Model:
     Returns:
         Model state.
     """
-
     # Defaults
     params = default_arg(params, default_factory=partial(ll.checkpoint.load_parameters, config))
 

@@ -1,15 +1,13 @@
 from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, wait
-from functools import partial
 import logging
 from queue import Queue
 from random import sample
-from time import perf_counter_ns as seed
 from threading import Event
+from time import perf_counter_ns as seed
 from typing import Any, NamedTuple
 from uuid import uuid4
 
-import jax
 from jax import Array, random
 from jax import numpy as jnp
 from pydantic import TypeAdapter
@@ -17,7 +15,6 @@ from tqdm.auto import tqdm
 
 import llama_jax as ll
 from llama_jax.checkpoint import ModelConfig
-from llama_jax.kvc import KVCache
 from llama_jax.model import Model
 from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
@@ -130,8 +127,7 @@ def session(
 
 def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int | None = None) -> Iterator[str]:
     """Submit chat completion."""
-
-    logger.info(f"Completion: started")
+    logger.info("Completion: started")
 
     # q is unbounded to avoid blocking
     q = Queue[Array | None]()
@@ -156,7 +152,7 @@ def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int 
 
     prompt = render_prompt(messages)
     token_ids, position_mask = session.tokenizer.encode(prompt)
-    
+
     logger.info(f"Completion: split prompt into {token_ids.shape[-1]} token ids")
 
     # Schedule generator in background thread
@@ -172,7 +168,7 @@ def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int 
         max_tokens,
     )
 
-    logger.info(f"Completion: scheduled generator")
+    logger.info("Completion: scheduled generator")
 
     try:
         # Stream tokens from queue
@@ -208,7 +204,7 @@ def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int 
         raise
 
     logger.info("Completion: waiting for generator to finish")
-    
+
     wait([job])
 
     logger.info("Completion: completed")
@@ -242,10 +238,8 @@ def _generator(
     active = jnp.ones(bs, dtype=bool)
 
     try:
-        
         # Generate up to max tokens
         for i in range(max_tokens):
-            
             # Check for cancel
             if cancel_event.is_set():
                 logger.info("Generator: cancelled")
@@ -276,7 +270,7 @@ def _generator(
         q.join()
 
         logger.info("Generator: completed")
-    
+
     except Exception as e:
         logger.exception(f"Generator: failed - {e}")
         raise e
@@ -317,5 +311,5 @@ def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None) -> 
 
     for i, prompt in enumerate(prompts):
         generator = complete(session, content=prompt, key=subkeys[i], max_tokens=max_tokens)
-        for token in tqdm(generator, desc=f"Warmup ({i + 1}/{n})", total=max_tokens, leave=False):
+        for _ in tqdm(generator, desc=f"Warmup ({i + 1}/{n})", total=max_tokens, leave=False):
             pass

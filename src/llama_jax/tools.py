@@ -15,9 +15,9 @@ __all__ = [
     "prompt",
     "recursive_tuple",
     "shell",
-    "trace",
-    "ss",
     "sq",
+    "ss",
+    "trace",
 ]
 
 
