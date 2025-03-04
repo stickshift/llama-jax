@@ -77,7 +77,9 @@ def generator(
 
             # Sample next token
             key, subkey = random.split(key) if key is not None else (None, None)
-            next_token_id = ll.model.next_token(logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p)
+            next_token_id = ll.model.next_token_id(
+                logits, key=subkey, temperature=temperature, top_k=top_k, top_p=top_p
+            )
 
             # Track active sequences
             is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)

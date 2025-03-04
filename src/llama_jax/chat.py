@@ -249,7 +249,7 @@ def _generator(
             logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
 
             # Sample tokens
-            next_token_id = ll.model.next_token(logits, key=subkeys[i])
+            next_token_id = ll.model.next_token_id(logits, key=subkeys[i])
 
             # Track active sequences
             is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)

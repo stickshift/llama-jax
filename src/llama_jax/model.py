@@ -23,7 +23,7 @@ __all__ = [
     "Model",
     "create",
     "forward",
-    "next_token",
+    "next_token_id",
 ]
 
 # Module logger
@@ -134,7 +134,7 @@ def forward(
 
 
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
-def next_token(
+def next_token_id(
     logits: Array,
     *,
     key: Array | None = None,
@@ -142,7 +142,7 @@ def next_token(
     top_k: int | None = None,
     top_p: float | None = None,
 ) -> Array:
-    """Select next token using temperature, top k, and top p sampling."""
+    """Select next token id using temperature, top k, and top p sampling."""
     # Validate
     if logits.ndim != 2:
         raise ValueError(f"Unexpected logits shape {logits.shape}. Expected (bs, vocab_size).")
