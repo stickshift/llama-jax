@@ -30,3 +30,6 @@ __pycache__
 .eslintcache
 .ipynb_checkpoints
 .env
+
+# Other files
+*.mdj

@@ -31,7 +31,7 @@ def create(config: ModelConfig) -> Rope:
     # Hyperparameters
     base_theta = config.rope_theta
     d = config.d_head
-    n = config.max_tokens
+    n = config.max_sequence_length
     dtype = config.dtype
 
     # Calculate thetas

@@ -55,7 +55,7 @@ class ModelConfig(NamedTuple):
 
     checkpoint_path: Path
 
-    max_tokens: int
+    max_sequence_length: int
 
     vocab_size: int
 
@@ -91,7 +91,7 @@ def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
         raise ValueError(f"Checkpoint not found: {checkpoint_path}")
 
     # Defaults
-    max_tokens = 512
+    max_sequence_length = 512
     dtype = jax.dtypes.bfloat16
 
     # Load hyperparameters
@@ -108,7 +108,7 @@ def load_config(checkpoint_name: str, **kwargs: Any) -> ModelConfig:
     data = {
         "checkpoint_name": checkpoint_name,
         "checkpoint_path": checkpoint_path,
-        "max_tokens": max_tokens,
+        "max_sequence_length": max_sequence_length,
         "vocab_size": hparams["vocab_size"],
         "d_model": hparams["dim"],
         "n_layers": hparams["n_layers"],
@@ -160,5 +160,5 @@ def load_tokenizer(config: ModelConfig) -> Tokenizer:
     # Load tiktoken model
     return Tokenizer(
         model_path=config.checkpoint_path / "tokenizer.model",
-        max_tokens=config.max_tokens,
+        max_sequence_length=config.max_sequence_length,
     )

@@ -95,8 +95,8 @@ def forward(
 ) -> Array | tuple[Array, KVCache]:
     """Transform token_ids into next token logits."""
     # Validate
-    if token_ids.shape[-1] > config.max_tokens:
-        raise ValueError(f"Number of tokens exceed config.max_tokens {config.max_tokens}")
+    if token_ids.shape[-1] > config.max_sequence_length:
+        raise ValueError(f"Number of tokens exceed config.max_tokens {config.max_sequence_length}")
 
     # Remember if cache was provided
     external_cache = kvc is not None

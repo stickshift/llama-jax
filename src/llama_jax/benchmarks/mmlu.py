@@ -1,44 +1,34 @@
 """Utilities for running Massive Multitask Language Understanding (MMLU) benchmark."""
 
-from collections.abc import Iterator, Sequence, Set
+from collections.abc import Sequence, Set
 import csv
-from functools import partial
 import logging
 from pathlib import Path
 from random import sample
 import shutil
 import tarfile
 import tempfile
-from typing import Callable, NamedTuple
+from typing import NamedTuple
 
 from IPython.display import display
-from jax import numpy as jnp
-from jax.nn import softmax
-import numpy as np
 from pandas import DataFrame
 import requests
 from tqdm.auto import tqdm
 
 import llama_jax as ll
 from llama_jax.chat import Thread
-from llama_jax.checkpoint import ModelConfig
-from llama_jax.model import Model
-from llama_jax.tokenizer import Tokenizer
 from llama_jax.tools import default_arg
 
 __all__ = [
     "OPTIONS",
     "Answer",
-    "AnswerGenerator",
     "Answers",
     "Categories",
     "Question",
     "Questions",
     "display_questions",
     "download_dataset",
-    "evaluate_generator",
     "generate_prompt",
-    "generator",
     "load_dataset",
     "select_question",
 ]
@@ -254,117 +244,3 @@ def generate_prompt(
     thread = {"messages": messages}
 
     return ll.chat.load_threads(thread)[0]
-
-
-AnswerGenerator = Callable[[Questions], Iterator[Sequence[Answer]]]
-
-
-def generator(
-    config: ModelConfig,
-    model: Model | None = None,
-    n_shots: int | None = None,
-    examples: Questions | None = None,
-    bs: int | None = None,
-) -> AnswerGenerator:
-    """Generate answers to questions."""
-    # Default to zero-shot w/ batch size of 8. See batch size experiments for rationale.
-    n_shots = default_arg(n_shots, 0)
-    bs = default_arg(bs, 8)
-
-    # Initialize tokenizer
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-
-    # Initialize model if not provided
-    if model is None:
-        params = ll.checkpoint.load_parameters(config)
-        model = ll.model.create(config, params)
-
-    return partial(
-        _generate,
-        config=config,
-        tokenizer=tokenizer,
-        model=model,
-        n_shots=n_shots,
-        examples=examples,
-        bs=bs,
-    )
-
-
-def _generate(
-    questions: Questions,
-    *,
-    config: ModelConfig,
-    tokenizer: Tokenizer,
-    model: Model,
-    n_shots: int,
-    examples: Questions | None,
-    bs: int,
-) -> Iterator[Sequence[Answer]]:
-    # Look up token ids for MMLU options A, B, C, D
-    mmlu_token_ids = jnp.array([tokenizer.encode(option, bos=False)[0].item() for option in OPTIONS])
-
-    # Batch questions
-    batches = [questions[i : i + bs] for i in range(0, len(questions), bs)]
-
-    # Generate answers for each batch
-    for batch in batches:
-        # Generate prompts
-        prompts = [ll.chat.render_prompt(generate_prompt(q, n_shots=n_shots, examples=examples)) for q in batch]
-
-        # Split prompts into tokens
-        token_ids, position_mask = tokenizer.encode(prompts)
-
-        # Drop entire batch if one of the prompts exceeds max tokens
-        if token_ids.shape[1] >= config.max_tokens:
-            question = batch[np.argmax([len(q.question) for q in batch])]
-            logger.warning(
-                f"Question {question.qid} exceeds max tokens: {token_ids.shape[1]} >= {config.max_tokens}. Dropping entire batch."
-            )
-            continue
-
-        # Transform token ids into next token logits
-        logits = ll.model.forward(config, model, token_ids, position_mask)
-
-        # Extract logits for MMLU options
-        mmlu_logits = logits.take(mmlu_token_ids, axis=-1)
-
-        # Convert to scores (probability distribution over options)
-        scores = softmax(mmlu_logits, axis=-1)
-
-        # Calculate answers
-        actuals = [OPTIONS[i] for i in jnp.argmax(scores, axis=-1)]
-
-        # Construct answers
-        answers = tuple(
-            Answer(
-                qid=q.qid,
-                expected=q.answer,
-                actual=actuals[i],
-                scores={option: scores[i][j].item() for j, option in enumerate(OPTIONS)},
-                correct=(actuals[i] == q.answer),
-            )
-            for i, q in enumerate(batch)
-        )
-
-        yield answers
-
-
-def evaluate_generator(
-    generator: AnswerGenerator,
-    *,
-    questions: Questions,
-    progress: tqdm | None = None,
-) -> float:
-    """Evaluate generator on questions."""
-    # Generate answers
-    answers = ()
-    for batch in generator(questions):
-        answers += batch
-        if progress is not None:
-            progress.update(len(batch))
-
-    # Calculate scores
-    correct_answers = tuple(a for a in answers if a.correct)
-    score = 100 * len(correct_answers) / len(questions)
-
-    return score
