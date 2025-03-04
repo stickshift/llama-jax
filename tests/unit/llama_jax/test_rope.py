@@ -24,8 +24,8 @@ def test_factory(config: ModelConfig):
     #
 
     # rotation matrices should have shape (max_tokens, d_head)
-    assert rope.cos.shape == (config.max_tokens, config.d_head)
-    assert rope.sin.shape == (config.max_tokens, config.d_head)
+    assert rope.cos.shape == (config.max_sequence_length, config.d_head)
+    assert rope.sin.shape == (config.max_sequence_length, config.d_head)
 
     # rotation matrices should match config dtype
     assert rope.cos.dtype == config.dtype

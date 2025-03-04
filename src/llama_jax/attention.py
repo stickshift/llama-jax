@@ -120,10 +120,10 @@ def attention_mask(config: ModelConfig, position_mask: Array) -> Array:
     """Compute attention mask."""
     # Sanity check
     assert position_mask.dtype == jnp.int32
-    assert position_mask.shape[-1] == config.max_tokens
+    assert position_mask.shape[-1] == config.max_sequence_length
 
-    # Start with (max_tokens, max_tokens) causal mask
-    causal_mask = jnp.tril(jnp.ones((config.max_tokens, config.max_tokens), dtype=jnp.int32))
+    # Start with (max_sequence_length, max_sequence_length) causal mask
+    causal_mask = jnp.tril(jnp.ones((config.max_sequence_length, config.max_sequence_length), dtype=jnp.int32))
 
     # Combine masks: m[b, i, j] = causal_mask[i, j] AND position_mask[b, j]
     #   1) Broadcast causal_mask from (n, n) to (bs, n, n)

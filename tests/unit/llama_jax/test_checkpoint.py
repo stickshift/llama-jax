@@ -23,7 +23,7 @@ def test_load_config():
     #
 
     # config should be populated
-    assert config.max_tokens == 512
+    assert config.max_sequence_length == 512
     assert config.vocab_size == 128256
     assert config.d_model == 3072
     assert config.dtype == jax.dtypes.bfloat16

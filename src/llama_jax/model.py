@@ -23,7 +23,7 @@ __all__ = [
     "Model",
     "create",
     "forward",
-    "next_token",
+    "next_token_id",
 ]
 
 # Module logger
@@ -95,8 +95,8 @@ def forward(
 ) -> Array | tuple[Array, KVCache]:
     """Transform token_ids into next token logits."""
     # Validate
-    if token_ids.shape[-1] > config.max_tokens:
-        raise ValueError(f"Number of tokens exceed config.max_tokens {config.max_tokens}")
+    if token_ids.shape[-1] > config.max_sequence_length:
+        raise ValueError(f"Number of tokens exceed config.max_tokens {config.max_sequence_length}")
 
     # Remember if cache was provided
     external_cache = kvc is not None
@@ -134,7 +134,7 @@ def forward(
 
 
 @partial(jax.jit, static_argnames=("temperature", "top_k", "top_p"))
-def next_token(
+def next_token_id(
     logits: Array,
     *,
     key: Array | None = None,
@@ -142,7 +142,7 @@ def next_token(
     top_k: int | None = None,
     top_p: float | None = None,
 ) -> Array:
-    """Select next token using temperature, top k, and top p sampling."""
+    """Select next token id using temperature, top k, and top p sampling."""
     # Validate
     if logits.ndim != 2:
         raise ValueError(f"Unexpected logits shape {logits.shape}. Expected (bs, vocab_size).")

@@ -40,7 +40,7 @@ _pat_str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?
 class Tokenizer:
     """Llama3 tokenizer based on tiktoken and the llama-models implementation."""
 
-    def __init__(self, model_path: Path | str, max_tokens: int):
+    def __init__(self, model_path: Path | str, max_sequence_length: int):
         # Convert to str
         model_path = str(model_path)
 
@@ -57,7 +57,7 @@ class Tokenizer:
             special_tokens=self.special_tokens,
         )
 
-        self.max_tokens = max_tokens
+        self.max_sequence_length = max_sequence_length
 
         self.n_words: int = num_base_tokens + len(self.special_tokens)
         self.bos_id: int = self.special_tokens["<|begin_of_text|>"]
@@ -109,7 +109,10 @@ class Tokenizer:
         token_ids = jnp.array(tids)
 
         # Calculate mask from padding
-        position_mask = ll.position_mask.create(jnp.where(token_ids == self.pad_id, 0, 1), max_tokens=self.max_tokens)
+        position_mask = ll.position_mask.create(
+            jnp.where(token_ids == self.pad_id, 0, 1),
+            max_sequence_length=self.max_sequence_length,
+        )
 
         return token_ids, position_mask
 

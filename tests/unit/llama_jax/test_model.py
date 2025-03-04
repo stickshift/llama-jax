@@ -125,7 +125,7 @@ def test_next_token_max_logit(logits: Array):
     logits = logits[:, -1]
 
     # I select next token w/ sampling disabled
-    next_tokens = ll.model.next_token(logits, temperature=0)
+    next_tokens = ll.model.next_token_id(logits, temperature=0)
 
     #
     # Thens
@@ -160,7 +160,7 @@ def test_next_token_random_sample(key: Array):
         # Sample tokens n times
         for _ in range(n):
             key, subkey = random.split(key)
-            next_token = ll.model.next_token(logits, key=subkey, temperature=temperature)
+            next_token = ll.model.next_token_id(logits, key=subkey, temperature=temperature)
             counts[next_token.item()] = counts[next_token.item()] + 1
 
         return counts
@@ -258,7 +258,7 @@ def test_generate_wo_cache(config: ModelConfig, params: ModelParameters, tokeniz
 
         # Sample next token
         key, subkey = random.split(key)
-        next_token_id = ll.model.next_token(logits, key=subkey, temperature=0)
+        next_token_id = ll.model.next_token_id(logits, key=subkey, temperature=0)
 
         # Process all tokens on next pass
         token_ids = jnp.concat([token_ids, next_token_id], axis=-1)
@@ -309,7 +309,7 @@ def test_generate_w_cache(config: ModelConfig, params: ModelParameters, tokenize
 
         # Sample next token
         key, subkey = random.split(key)
-        next_token_id = ll.model.next_token(logits, key=subkey, temperature=0)
+        next_token_id = ll.model.next_token_id(logits, key=subkey, temperature=0)
 
         # Update full list of tokens
         token_ids = jnp.concat([token_ids, next_token_id], axis=-1)

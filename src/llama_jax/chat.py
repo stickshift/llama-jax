@@ -221,13 +221,13 @@ def _generator(
 ) -> None:
     """Background job that feeds tokens into model."""
     # Defaults
-    max_tokens = default_arg(max_tokens, session.config.max_tokens)
+    max_tokens = default_arg(max_tokens, session.config.max_sequence_length)
 
     config, tokenizer, model = session.config, session.tokenizer, session.model
     bs, n = token_ids.shape
 
-    # Generate up to config.max_tokens
-    max_tokens = min(max_tokens, config.max_tokens - n)
+    # Generate up to config.max_sequence_length
+    max_tokens = min(max_tokens, config.max_sequence_length - n)
     logger.info(f"Generator: started - generating up to {max_tokens} tokens")
 
     x = token_ids
@@ -249,7 +249,7 @@ def _generator(
             logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
 
             # Sample tokens
-            next_token_id = ll.model.next_token(logits, key=subkeys[i])
+            next_token_id = ll.model.next_token_id(logits, key=subkeys[i])
 
             # Track active sequences
             is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
@@ -303,7 +303,7 @@ _warmup_prompt_pool = (
 
 def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None) -> None:
     """Warmup model cache."""
-    max_tokens = default_arg(max_tokens, session.config.max_tokens)
+    max_tokens = default_arg(max_tokens, session.config.max_sequence_length)
 
     n = 10
     prompts = sample(_warmup_prompt_pool, k=n)
