@@ -32,4 +32,6 @@ __pycache__
 .env
 
 # Other files
+notebooks/archive/
+notebooks/experiments/
 *.mdj
