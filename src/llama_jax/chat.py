@@ -1,10 +1,10 @@
 from collections.abc import Iterator, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 import logging
-from queue import Queue
+from queue import SimpleQueue
 from random import sample
 from threading import Event
-from time import perf_counter_ns as seed
+from time import time_ns as seed
 from typing import Any, NamedTuple
 from uuid import uuid4
 
@@ -43,6 +43,12 @@ class Message(NamedTuple):
 MessageLike = Mapping[str, str] | Message
 
 
+class Completion(NamedTuple):
+    messages: Sequence[Message]
+
+    delta: str | None
+
+
 def load_messages(input_messages: MessageLike | Sequence[MessageLike]) -> Sequence[Message]:
     """Load messages."""
     if not isinstance(input_messages, Sequence):
@@ -65,9 +71,6 @@ def render_prompt(messages: Sequence[Message]) -> str:
     return prompt
 
 
-_messages: Mapping[str, list[Message]] = {}
-
-
 class ChatSession(NamedTuple):
     """Chat session state."""
 
@@ -79,6 +82,8 @@ class ChatSession(NamedTuple):
 
     model: Model
 
+    system_prompt: str | None
+
     executor: ThreadPoolExecutor
 
 
@@ -88,192 +93,199 @@ _default_checkpoint = "Llama3.2-3B-Instruct"
 def session(
     config: ModelConfig | None = None,
     system_prompt: str | None = None,
-    warmup: bool | None = None,
     warmup_tokens: int | None = None,
     **kwargs: Any,
 ) -> ChatSession:
     """Create new chat session."""
-    # Defaults
-    warmup = default_arg(warmup, True)
-
     # Load config if needed
     if config is None:
-        max_tokens = kwargs.pop("max_tokens", 4096)
-        config = ll.checkpoint.load_config(_default_checkpoint, max_tokens=max_tokens, **kwargs)
+        max_sequence_length = kwargs.pop("max_sequence_length", 4096)
+        config = ll.checkpoint.load_config(_default_checkpoint, max_sequence_length=max_sequence_length, **kwargs)
 
     # Validate
     if not config.checkpoint_name.endswith("-Instruct"):
         raise ValueError(f"Invalid checkpoint {config.checkpoint_name}. Chat sessions require instruct checkpoint.")
 
-    id = uuid4().hex
-    tokenizer = ll.checkpoint.load_tokenizer(config)
-    params = ll.checkpoint.load_parameters(config)
-    model = ll.model.create(config, params)
-
-    # Initialize executor with max of 1 worker to ensure multiple requests are queued
-    executor = ThreadPoolExecutor(max_workers=1)
-
-    # Initialize conversation
-    _messages[id] = [Message(role="system", content=system_prompt)] if system_prompt else []  # type: ignore[index]
-
-    session = ChatSession(id=id, config=config, tokenizer=tokenizer, model=model, executor=executor)
+    session = ChatSession(
+        id=uuid4().hex,
+        config=config,
+        tokenizer=ll.checkpoint.load_tokenizer(config),
+        model=ll.model.create(config),
+        system_prompt=system_prompt,
+        executor=ThreadPoolExecutor(),
+    )
 
     # Warmup model
-    if warmup:
-        _warmup(session, random.key(seed()), max_tokens=warmup_tokens)
+    if warmup_tokens:
+        _warmup(session, max_tokens=warmup_tokens)
 
     return session
 
 
-def complete(session: ChatSession, *, content: str, key: Array, max_tokens: int | None = None) -> Iterator[str]:
-    """Submit chat completion."""
-    logger.info("Completion: started")
+def complete(
+    session: ChatSession,
+    *,
+    messages: Sequence[MessageLike],
+    stream: bool | None = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_k: int | None = None,
+    top_p: float | None = None,
+) -> Completion | Iterator[Completion]:
+    """Complete chat."""
+    # Defaults
+    stream = default_arg(stream, False)
 
-    # q is unbounded to avoid blocking
-    q = Queue[Array | None]()
-
-    # Append to existing conversation
-    messages = _messages[session.id] + [
-        Message(
-            role="user",
-            content=content,
-        ),
-    ]
-
-    #
-    # TODO: Revisit this with more time to optimize it.
-    #
-    # _messages[session.id].append(
-    #     Message(
-    #         role="user",
-    #         content=content,
-    #     )
-    # )
-
-    prompt = render_prompt(messages)
-    token_ids, position_mask = session.tokenizer.encode(prompt)
-
-    logger.info(f"Completion: split prompt into {token_ids.shape[-1]} token ids")
-
-    # Schedule generator in background thread
-    cancel_event = Event()
-    job = session.executor.submit(
-        _generator,
+    completion_generator = _complete(
         session,
-        token_ids,
-        position_mask,
-        key,
-        q,
-        cancel_event,
-        max_tokens,
+        input_messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
     )
 
-    logger.info("Completion: scheduled generator")
+    if stream:
+        return completion_generator
+
+    # Collect completion events
+    completion = next(c for c in completion_generator if c.delta is None)
+
+    return completion
+
+
+_token_id_timeout = None
+
+
+def _complete(
+    session: ChatSession,
+    *,
+    input_messages: Sequence[MessageLike],
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_k: int | None = None,
+    top_p: float | None = None,
+) -> Iterator[Completion]:
+    """Completion generator."""
+    q = SimpleQueue[Array | None]()
+    cancel_event = Event()
+
+    # Prompt
+    messages = load_messages(input_messages)
+    if not messages:
+        raise ValueError("input_messages must include at least 1 message")
+
+    if session.system_prompt and messages[0].role != "system":
+        messages = [Message(role="system", content=session.system_prompt), *messages]
+
+    prompt = render_prompt(messages)
+
+    # Encode token ids
+    token_ids, position_mask = session.tokenizer.encode(prompt)
+
+    # Schedule generator
+    task = session.executor.submit(
+        _generator,
+        session,
+        q,
+        cancel_event,
+        token_ids,
+        position_mask,
+        max_tokens,
+        temperature,
+        top_k,
+        top_p,
+    )
 
     try:
-        # Stream tokens from queue
-        response = ""
-        while True:
-            next_token_id = q.get()
-            if next_token_id is None:
-                q.task_done()
-                break
+        # Collect generated tokens
+        content = ""
+        while (token_id := q.get(timeout=_token_id_timeout)) is not None:
+            # Decode token ids
+            token = session.tokenizer.decode(token_id)[0]
+            content += token
 
-            token = session.tokenizer.decode(next_token_id)[0]
+            yield Completion(
+                messages=[*messages, Message(role="assistant", content=content)],
+                delta=token,
+            )
+    finally:
+        _cancel_task(task, cancel_event)
 
-            yield token
-
-            response += token
-
-            q.task_done()
-
-        #
-        # TODO: Revisit this with more time to optimize it.
-        #
-        # Append response to existing conversation
-        # _messages[session.id].append(
-        #     Message(
-        #         role="assistant",
-        #         content=response,
-        #     )
-        # )
-
-    except KeyboardInterrupt:
-        # Cancel job
-        cancel_event.set()
-        raise
-
-    logger.info("Completion: waiting for generator to finish")
-
-    wait([job])
-
-    logger.info("Completion: completed")
+    # Final completion
+    yield Completion(
+        messages=[*messages, Message(role="assistant", content=content)],
+        delta=None,
+    )
 
 
-def _generator(
+def _generator(  # noqa: PLR0917
     session: ChatSession,
+    q: SimpleQueue[Array | None],
+    cancel_event: Event,
     token_ids: Array,
     position_mask: Array,
-    key: Array,
-    q: Queue[Array | None],
-    cancel_event: Event,
     max_tokens: int | None = None,
+    temperature: float | None = None,
+    top_k: int | None = None,
+    top_p: float | None = None,
 ) -> None:
-    """Background job that feeds tokens into model."""
+    """Generate up to max_tokens."""
+    job_id = uuid4().hex
+
     # Defaults
-    max_tokens = default_arg(max_tokens, session.config.max_sequence_length)
-
-    config, tokenizer, model = session.config, session.tokenizer, session.model
-    bs, n = token_ids.shape
-
-    # Generate up to config.max_sequence_length
-    max_tokens = min(max_tokens, config.max_sequence_length - n)
-    logger.info(f"Generator: started - generating up to {max_tokens} tokens")
+    n = token_ids.shape[-1]
+    max_tokens = default_arg(max_tokens, session.config.max_sequence_length - n)
 
     x = token_ids
-    kvc = ll.kvc.create(config)
-    key, *subkeys = random.split(key, max_tokens + 1)
+    kvc = ll.kvc.create(session.config)
+    keys = random.split(random.key(seed()), max_tokens)
 
-    # All sequences in batch start off active
-    active = jnp.ones(bs, dtype=bool)
+    logger.info(f"Generator: {job_id} - started")
 
     try:
-        # Generate up to max tokens
         for i in range(max_tokens):
             # Check for cancel
             if cancel_event.is_set():
-                logger.info("Generator: cancelled")
-                return
+                break
 
-            # Transform token ids
-            logits, kvc = ll.model.forward(config, model, x, position_mask, kvc=kvc)
+            # Predict next token
+            logits, kvc = ll.model.forward(session.config, session.model, x, position_mask, kvc=kvc)
+            token_id = ll.model.next_token_id(
+                logits,
+                key=keys[i],
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+            )
 
-            # Sample tokens
-            next_token_id = ll.model.next_token_id(logits, key=subkeys[i])
-
-            # Track active sequences
-            is_stop_token = jnp.isin(next_token_id.squeeze(), tokenizer.stop_tokens)
-            active = active & ~is_stop_token
-            if not jnp.any(active):
+            # Check for stop tokens
+            if jnp.any(jnp.isin(token_id.squeeze(), session.tokenizer.stop_tokens)):
                 break
 
             # Publish next token id
-            q.put(next_token_id)
+            q.put(token_id)
 
-            # Process generated token on next pass
-            x = next_token_id
+            x = token_id
 
-        # Send all done
-        q.put(None)
-
-        # Wait for all jobs to be processed
-        q.join()
-
-        logger.info("Generator: completed")
+        logger.info(f"Generator: {job_id} - completed")
 
     except Exception as e:
-        logger.exception(f"Generator: failed - {e}")
+        logger.info(f"Generator: {job_id} - failed - {e}")
         raise e
+
+    finally:
+        # Publish done
+        q.put(None)
+
+
+def _cancel_task(task: Future[None], cancel_event: Event) -> None:
+    # Tell background thread to quit
+    cancel_event.set()
+
+    # Wait for cancel
+    done, _ = wait([task])
+    assert task in done
 
 
 _warmup_prompt_pool = (
@@ -301,15 +313,19 @@ _warmup_prompt_pool = (
 )
 
 
-def _warmup(session: ChatSession, key: Array, max_tokens: int | None = None) -> None:
+def _warmup(session: ChatSession, max_tokens: int | None = None) -> None:
     """Warmup model cache."""
     max_tokens = default_arg(max_tokens, session.config.max_sequence_length)
 
     n = 10
     prompts = sample(_warmup_prompt_pool, k=n)
-    key, *subkeys = random.split(key, n + 1)
 
     for i, prompt in enumerate(prompts):
-        generator = complete(session, content=prompt, key=subkeys[i], max_tokens=max_tokens)
+        generator = complete(
+            session,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+            max_tokens=max_tokens,
+        )
         for _ in tqdm(generator, desc=f"Warmup ({i + 1}/{n})", total=max_tokens, leave=False):
             pass
